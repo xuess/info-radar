@@ -11,7 +11,7 @@ import yaml
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "scripts"))
 
-from opml_import import _slugify, main, merge_into_feeds, parse_opml
+from opml_import import _slugify, main, merge_into_feeds, parse_opml  # noqa: E402
 
 OPML_SAMPLE = """<?xml version="1.0" encoding="UTF-8"?>
 <opml version="2.0">

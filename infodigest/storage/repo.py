@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Iterable
 
 from ..collector.parser import Entry

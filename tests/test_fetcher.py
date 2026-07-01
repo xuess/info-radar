@@ -32,7 +32,6 @@ class TestFetchOk:
             captured["headers"] = dict(request.headers)
             return httpx.Response(200, content=b"<rss>ok</rss>", headers={"ETag": '"abc"'})
 
-        import infodigest.collector.fetcher as mod
 
         class FakeClient:
             def __init__(self, *a, **kw):
@@ -143,7 +142,6 @@ class TestFetchErrors:
                 return httpx.Response(500)
 
         # Patch time.sleep to avoid real delays
-        import infodigest.collector.fetcher as mod
         import time
 
         monkeypatch.setattr(time, "sleep", lambda s: None)

@@ -3,14 +3,11 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from pathlib import Path
 
-import pytest
 
 from infodigest.collector.parser import Entry
 from infodigest.config import CONFIG_DIR, DeliveryConfig
 from infodigest.formatter.builder import (
-    RenderedMessage,
     render_dingtalk,
     render_feishu,
     segment_entries,

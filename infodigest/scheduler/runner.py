@@ -12,7 +12,7 @@ from pathlib import Path
 from ..collector.dedup import dedup_entries
 from ..collector.fetcher import FetchError, fetch
 from ..collector.parser import Entry, parse
-from ..config import Config, Source, utc_now
+from ..config import Config, Source
 from ..delivery.base import SendResult
 from ..formatter.builder import render_dingtalk, render_feishu
 from ..rater.scorer import ScoreContext, score
@@ -172,11 +172,9 @@ def run(config: Config, db_path: str | None = None, feishu=None, dingtalk=None) 
                 delivered += ok
                 failures += fail
                 errors.extend(errs)
-                # Mark entries as pushed (use first digest id as batch marker)
-                for m, did in zip(msgs, digest_ids):
-                    batch_uids = [e.uid for e in pending[m.batch_index * config.delivery.max_entries_per_message:(m.batch_index + 1) * config.delivery.max_entries_per_message]]
-                    # Simpler: mark all pending as part of first digest
-                repo.mark_entries_digest([e.uid for e in pending], digest_ids[0] if digest_ids else "")
+                # Mark all pending entries as delivered (batch marker = first digest)
+                if digest_ids:
+                    repo.mark_entries_digest([e.uid for e in pending], digest_ids[0])
 
             if dingtalk is not None:
                 msgs = render_dingtalk(pending, sources=sources_list, delivery=config.delivery)

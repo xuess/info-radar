@@ -4,12 +4,10 @@ for retry on the next run. Stored as JSON files in data/failed_digests/.
 from __future__ import annotations
 
 import json
-import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from .base import SendResult
 
 
 @dataclass(frozen=True)

@@ -8,12 +8,10 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import sys
-from pathlib import Path
 
-from .config import REPO_ROOT, load_config
+from .config import load_config
 
 
 def cmd_run(args) -> int:

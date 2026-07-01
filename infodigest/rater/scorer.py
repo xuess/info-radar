@@ -9,8 +9,7 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from typing import Any
+from datetime import datetime
 
 from ..collector.normalizer import normalize_title
 from ..collector.parser import Entry

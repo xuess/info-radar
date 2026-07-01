@@ -1,7 +1,6 @@
 """Tests for collector/parser.py"""
 from __future__ import annotations
 
-from pathlib import Path
 
 from infodigest.collector.parser import Entry, parse
 from infodigest.config import Source

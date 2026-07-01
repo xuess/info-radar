@@ -1,7 +1,6 @@
 """Tests for storage/models.py and storage/repo.py — uses temporary SQLite db."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -116,7 +115,6 @@ class TestEntries:
         assert "Rust news" in titles
 
     def test_pending_digest_filters_by_grade(self, repo):
-        now = datetime(2026, 7, 2, tzinfo=timezone.utc)
         e1 = _entry("u1", "Grade A")
         e2 = _entry("u2", "Grade B")
         e3 = _entry("u3", "Grade C")

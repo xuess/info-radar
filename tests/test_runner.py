@@ -2,12 +2,9 @@
 and a local RSS fixture (no real network)."""
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 
-import pytest
 
-from infodigest.collector.parser import Entry
 from infodigest.config import Config, DeliveryConfig, RaterConfig, Source, StorageConfig, CollectConfig, ScheduleConfig, REPO_ROOT
 from infodigest.delivery.base import SendResult
 from infodigest.scheduler.runner import RunReport, run
@@ -70,7 +67,6 @@ def _make_config(db_path: str, feed_path: Path, enabled: bool = True) -> Config:
 def _patch_file_fetch(monkeypatch, feed_path: Path):
     """Patch the runner's fetch() to read the local fixture file instead of HTTP."""
     from infodigest.collector.fetcher import FetchResult
-    from infodigest.collector import fetcher as fetcher_mod
     import infodigest.scheduler.runner as runner_mod
 
     content = feed_path.read_bytes()

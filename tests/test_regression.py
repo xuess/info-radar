@@ -3,7 +3,7 @@ against a fixed fixture. Catches silent weight/threshold drift.
 """
 from __future__ import annotations
 
-from infodigest.config import RaterConfig, load_config
+from infodigest.config import load_config
 from infodigest.rater.scorer import ScoreContext, score
 
 from tests.fixtures.regression_entries import (

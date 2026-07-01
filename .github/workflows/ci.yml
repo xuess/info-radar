@@ -27,4 +27,4 @@ jobs:
         run: ruff check infodigest tests
 
       - name: Test with coverage
-        run: pytest --cov=infodigest --cov-report=term-missing --cov-fail-under=60
+        run: pytest --cov=infodigest --cov-report=term-missing --cov-fail-under=85

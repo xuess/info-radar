@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 
 import httpx
-import pytest
 
 from infodigest.config import DeliveryConfig
 from infodigest.delivery.feishu import FeishuChannel, _sign
@@ -136,7 +135,6 @@ class TestFeishuChannel:
             client=FakeClient(),
         )
         # avoid real sleep delays
-        import infodigest.delivery.feishu as mod
         orig = time.sleep
         time.sleep = lambda s: None
         try:

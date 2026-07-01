@@ -8,7 +8,6 @@ Two-stage:
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
 
 from .normalizer import normalize_title
 from .parser import Entry
