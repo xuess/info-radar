@@ -29,6 +29,19 @@ class TestParser:
         args = parser.parse_args(["sources"])
         assert args.command == "sources"
 
+    def test_health_command(self):
+        parser = build_parser()
+        args = parser.parse_args(["health", "--days", "14"])
+        assert args.command == "health"
+        assert args.days == 14
+
+    def test_adjust_command(self):
+        parser = build_parser()
+        args = parser.parse_args(["adjust", "--base", "0.8", "--recent", "0.2"])
+        assert args.command == "adjust"
+        assert args.base == 0.8
+        assert args.recent == 0.2
+
     def test_db_override(self):
         parser = build_parser()
         args = parser.parse_args(["--db", "/tmp/x.db", "run"])
@@ -71,6 +84,39 @@ class TestSourcesCommand:
         assert "collected: 10" in out
         assert "feishu" in out
         assert "dingtalk" in out
+
+    def test_health_command(self, tmp_db, capsys):
+        from infodigest.storage.models import init_db
+        from infodigest.storage.repo import Repo
+        from infodigest.config import Source
+        conn = init_db(tmp_db)
+        repo = Repo(conn)
+        repo.upsert_source(Source(id="hn", url="https://x", authority=0.9, tags=("n",)))
+        conn.close()
+        rc = main(["--db", tmp_db, "health"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "hn" in out
+        assert "auth" in out
+
+    def test_adjust_command(self, tmp_db, capsys):
+        from infodigest.storage.models import init_db
+        from infodigest.storage.repo import Repo
+        from infodigest.config import Source
+        conn = init_db(tmp_db)
+        repo = Repo(conn)
+        repo.upsert_source(Source(id="hn", url="https://x", authority=0.9, tags=("n",)))
+        conn.close()
+        rc = main(["--db", tmp_db, "adjust", "--base", "0.8", "--recent", "0.2"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "Adjusted" in out
+
+    def test_health_empty(self, tmp_db, capsys):
+        rc = main(["--db", tmp_db, "health"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "No sources" in out
 
 
 class TestCollectCommand:

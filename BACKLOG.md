@@ -2,28 +2,24 @@
 
 > ROADMAP 项见 ROADMAP.md。此处记录 EVOLUTION LOOP 自驱进化项。
 
-## 第 1 轮进化项（已完成 ✅）
+## 第 1–3 轮（已完成 ✅）
+- 跨源去重、fetcher coverage 76→97%、feishu A-highlight、7d report、delivery coverage 80→96%、+4 sources、grade-grouped dingtalk、runner coverage 84→93%、source_health+adjust_authority、LICENSE
 
-- [x] E1.1 补 fetcher.py 边界测试（429 退避、timeout 重试）— 覆盖率 76%→97%
-- [x] E1.3 跨源去重 dedup_cross_source — 同标题多源保留 authority 最高者
-- [x] E1.4 扩展 penalty_words（标题党词）
-- [x] E1.6 cli report 7 天统计 + 源成功率
-- [x] E1.7 飞书 card A 级高亮 note block
-
-## 第 2 轮进化项（进行中）
-
-### A. 质量
-- [ ] E2.1 补 feishu.py/dingtalk.py 错误路径测试（提升 80%→90%+） [S]
-- [ ] E2.2 补 cli.py cmd_run/cmd_collect 路径测试 [M]
-
-### B. 源覆盖
-- [ ] E2.3 新增安全/设计类别源到 feeds.yaml [S]
+## 第 4 轮进化项（进行中）
 
 ### E. 可观测
-- [ ] E2.4 源健康度：成功率统计 + 自动降权逻辑 [M]
+- [ ] E4.1 cli health 子命令：展示源健康度 + authority [S]
+- [ ] E4.2 runner 集成 adjust_authority（可选 flag） [S]
 
 ### F. 体验
-- [ ] E2.5 钉钉 markdown 分级折叠（A 级在前） [S]
+- [ ] E4.3 周报模板 weekly_digest.j2 [M]
+- [ ] E4.4 digest_section.j2 复用优化（dingtalk 用 include） [S]
+
+### B. 源覆盖
+- [ ] E4.5 补充 LWN + 链闻源 [S]
+
+### A. 质量
+- [ ] E4.6 failed_digests.py 覆盖率 87→95% [S]
 
 ## 已完成
-- 第 1 轮全部项（见上）
+- 第 1–3 轮全部项

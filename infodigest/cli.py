@@ -110,6 +110,42 @@ def cmd_sources(args) -> int:
     return 0
 
 
+def cmd_health(args) -> int:
+    """Show source health: entries, A-grade ratio, authority."""
+    from .storage.models import init_db
+    from .storage.repo import Repo
+
+    config = load_config()
+    db = args.db or config.storage.db_path
+    conn = init_db(db)
+    repo = Repo(conn)
+    health = repo.source_health(args.days)
+    if not health:
+        print("No sources recorded. Run 'collect' first.")
+        conn.close()
+        return 0
+    print(f"{'id':<20} {'enabled':<8} {'auth':>5} {'entries':>7} {'A':>3} {'a_ratio':>8}")
+    for h in health:
+        print(f"{h['id']:<20} {str(h['enabled']):<8} {h['authority']:>5.2f} {h['total_entries']:>7} {h['a_count']:>3} {h['a_ratio']:>8.2f}")
+    conn.close()
+    return 0
+
+
+def cmd_adjust(args) -> int:
+    """Auto-adjust source authority based on recent A-grade ratio."""
+    from .storage.models import init_db
+    from .storage.repo import Repo
+
+    config = load_config()
+    db = args.db or config.storage.db_path
+    conn = init_db(db)
+    repo = Repo(conn)
+    repo.adjust_authority(base_weight=args.base, recent_weight=args.recent)
+    print(f"Adjusted authority for all sources (base={args.base}, recent={args.recent})")
+    conn.close()
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="info-digest", description="InfoDigest RSS aggregator CLI")
     p.add_argument("--db", help="override SQLite db path")
@@ -120,6 +156,13 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("collect", help="fetch + parse only").set_defaults(func=cmd_collect)
     sub.add_parser("report", help="show recent run stats").set_defaults(func=cmd_report)
     sub.add_parser("sources", help="list configured sources").set_defaults(func=cmd_sources)
+    p_health = sub.add_parser("health", help="show source health stats")
+    p_health.set_defaults(func=cmd_health)
+    p_health.add_argument("--days", type=int, default=30, help="lookback days (default 30)")
+    p_adjust = sub.add_parser("adjust", help="auto-adjust source authority")
+    p_adjust.set_defaults(func=cmd_adjust)
+    p_adjust.add_argument("--base", type=float, default=0.7, help="base weight (default 0.7)")
+    p_adjust.add_argument("--recent", type=float, default=0.3, help="recent weight (default 0.3)")
     return p
 
 
