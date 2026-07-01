@@ -9,7 +9,7 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ..collector.dedup import dedup_entries
+from ..collector.dedup import dedup_cross_source, dedup_entries
 from ..collector.fetcher import FetchError, fetch
 from ..collector.parser import Entry, parse
 from ..config import Config, Source
@@ -118,14 +118,19 @@ def run(config: Config, db_path: str | None = None, feishu=None, dingtalk=None) 
             all_entries.extend(entries)
         report.collected = len(all_entries)
 
-        # ---- DEDUP ----
+        # ---- DEDUP (within batch + cross-source) ----
         recent = repo.recent_titles(config.rater.dedup_window_days)
-        deduped_entries, dropped = dedup_entries(
+        deduped_entries, dropped1 = dedup_entries(
             all_entries,
             recent_titles=recent,
             similarity_threshold=config.rater.dedup_similarity,
         )
-        report.deduped = dropped
+        # Cross-source: same story reported by multiple sources -> keep highest authority
+        deduped_entries, dropped2 = dedup_cross_source(
+            deduped_entries,
+            similarity_threshold=config.rater.dedup_similarity,
+        )
+        report.deduped = dropped1 + dropped2
 
         # ---- STORE (new entries) ----
         stored = repo.upsert_entries(deduped_entries)

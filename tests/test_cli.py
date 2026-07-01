@@ -54,6 +54,24 @@ class TestSourcesCommand:
         out = capsys.readouterr().out
         assert "No runs" in out
 
+    def test_report_with_runs_and_stats(self, tmp_db, capsys):
+        from infodigest.storage.models import init_db
+        from infodigest.storage.repo import Repo
+        conn = init_db(tmp_db)
+        repo = Repo(conn)
+        rid = repo.start_run()
+        repo.finish_run(rid, collected=10, deduped=2, rated=8, delivered=8, status="ok")
+        repo.create_digest("feishu", 5, status="sent")
+        repo.create_digest("dingtalk", 3, status="sent")
+        conn.close()
+        rc = main(["--db", tmp_db, "report"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "7-day stats" in out
+        assert "collected: 10" in out
+        assert "feishu" in out
+        assert "dingtalk" in out
+
 
 class TestCollectCommand:
     def test_collect_with_file_source(self, tmp_db, monkeypatch, capsys):

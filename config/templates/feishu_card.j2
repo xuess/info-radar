@@ -1,5 +1,5 @@
 {# Feishu interactive card JSON template. The whole object is built here,
-   no LLM. DingTalk uses dingtalk_md.j2 instead. #}
+   no LLM. A-grade entries get a highlighted note block; others use plain div. #}
 {
   "msg_type": "interactive",
   "card": {
@@ -15,6 +15,14 @@
       },
       { "tag": "hr" },
       {% for entry in entries %}
+      {% if entry.grade == "A" %}
+      {
+        "tag": "note",
+        "elements": [
+          { "tag": "lark_md", "content": "🔥 **[A 推荐]** [{{ entry.title }}]({{ entry.link }})\n{{ entry.summary[:120] }}{% if entry.summary|length > 120 %}...{% endif %}" }
+        ]
+      },
+      {% else %}
       {
         "tag": "div",
         "text": {
@@ -22,6 +30,7 @@
           "content": "{{ grade_label(entry.grade) }} [{{ entry.title }}]({{ entry.link }})\n{{ entry.summary[:120] }}{% if entry.summary|length > 120 %}...{% endif %}"
         }
       },
+      {% endif %}
       { "tag": "hr" },
       {% endfor %}
       {

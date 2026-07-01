@@ -149,3 +149,105 @@ class TestFetchErrors:
         with pytest.raises(FetchError, match="HTTP 500"):
             fetch(URL, cfg)
         assert calls["n"] == 2  # initial + 1 retry
+
+    def test_429_retries_then_succeeds(self, monkeypatch):
+        cfg = _cfg(max_retries=2)
+        calls = {"n": 0}
+
+        class FakeClient:
+            def __init__(self, *a, **kw):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def get(self, url, headers=None):
+                calls["n"] += 1
+                if calls["n"] < 2:
+                    return httpx.Response(429)
+                return httpx.Response(200, content=b"<rss>ok</rss>", headers={"ETag": '"x"'})
+
+        import time
+        monkeypatch.setattr(time, "sleep", lambda s: None)
+        monkeypatch.setattr(httpx, "Client", FakeClient)
+        result = fetch(URL, cfg)
+        assert result.status == 200
+        assert result.content == b"<rss>ok</rss>"
+        assert calls["n"] == 2
+
+    def test_timeout_retries_then_raises(self, monkeypatch):
+        cfg = _cfg(max_retries=1)
+        calls = {"n": 0}
+
+        class FakeClient:
+            def __init__(self, *a, **kw):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def get(self, url, headers=None):
+                calls["n"] += 1
+                raise httpx.ReadTimeout("read timed out")
+
+        import time
+        monkeypatch.setattr(time, "sleep", lambda s: None)
+        monkeypatch.setattr(httpx, "Client", FakeClient)
+        with pytest.raises(FetchError, match="timed out"):
+            fetch(URL, cfg)
+        assert calls["n"] == 2
+
+    def test_timeout_retries_then_succeeds(self, monkeypatch):
+        cfg = _cfg(max_retries=2)
+        calls = {"n": 0}
+
+        class FakeClient:
+            def __init__(self, *a, **kw):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def get(self, url, headers=None):
+                calls["n"] += 1
+                if calls["n"] < 2:
+                    raise httpx.ConnectError("conn refused")
+                return httpx.Response(200, content=b"<rss/>")
+
+        import time
+        monkeypatch.setattr(time, "sleep", lambda s: None)
+        monkeypatch.setattr(httpx, "Client", FakeClient)
+        result = fetch(URL, cfg)
+        assert result.status == 200
+        assert calls["n"] == 2
+
+    def test_429_no_retries_left_raises(self, monkeypatch):
+        cfg = _cfg(max_retries=0)
+
+        class FakeClient:
+            def __init__(self, *a, **kw):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def get(self, url, headers=None):
+                return httpx.Response(429)
+
+        import time
+        monkeypatch.setattr(time, "sleep", lambda s: None)
+        monkeypatch.setattr(httpx, "Client", FakeClient)
+        with pytest.raises(FetchError, match="HTTP 429"):
+            fetch(URL, cfg)

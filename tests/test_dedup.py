@@ -113,3 +113,56 @@ class TestDedupEntries:
         kept1, _ = dedup_entries(entries)
         kept2, _ = dedup_entries(kept1)
         assert {e.uid for e in kept1} == {e.uid for e in kept2}
+
+
+class TestDedupCrossSource:
+    def test_keeps_higher_authority(self):
+        from infodigest.collector.parser import Entry
+        from datetime import datetime, timezone
+
+        def _e(uid, title, authority, source_id):
+            return Entry(uid=uid, source_id=source_id, title=title, summary="",
+                         link=f"https://x/{uid}", published=datetime(2026, 7, 1, tzinfo=timezone.utc),
+                         raw={"authority": authority})
+
+        # Same title, two sources, different authority
+        entries = [
+            _e("u1", "AI breakthrough today", 0.6, "src_low"),
+            _e("u2", "AI breakthrough today", 0.9, "src_high"),
+        ]
+        from infodigest.collector.dedup import dedup_cross_source
+        kept, dropped = dedup_cross_source(entries, similarity_threshold=0.8)
+        assert dropped == 1
+        assert len(kept) == 1
+        assert kept[0].source_id == "src_high"
+
+    def test_different_titles_kept(self):
+        from infodigest.collector.dedup import dedup_cross_source
+        entries = [
+            _entry("u1", "AI breakthrough", source_id="a"),
+            _entry("u2", "Rust security advisory", source_id="b"),
+        ]
+        # need authority in raw
+        for e in entries:
+            e.raw["authority"] = 0.5
+        kept, dropped = dedup_cross_source(entries, similarity_threshold=0.8)
+        assert len(kept) == 2
+        assert dropped == 0
+
+    def test_equal_authority_keeps_first(self):
+        from infodigest.collector.dedup import dedup_cross_source
+        entries = [
+            _entry("u1", "Same title here", source_id="first"),
+            _entry("u2", "Same title here", source_id="second"),
+        ]
+        for e in entries:
+            e.raw["authority"] = 0.7
+        kept, dropped = dedup_cross_source(entries, similarity_threshold=0.8)
+        assert dropped == 1
+        assert len(kept) == 1
+
+    def test_empty_input(self):
+        from infodigest.collector.dedup import dedup_cross_source
+        kept, dropped = dedup_cross_source([])
+        assert kept == []
+        assert dropped == 0

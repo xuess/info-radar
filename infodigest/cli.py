@@ -78,6 +78,26 @@ def cmd_report(args) -> int:
     print(f"{'id':>4} {'started':<26} {'col':>5} {'ded':>5} {'rat':>5} {'del':>5} {'status':<10}")
     for r in rows:
         print(f"{r['id']:>4} {r['started_at'] or '':<26} {r['collected']:>5} {r['deduped']:>5} {r['rated']:>5} {r['delivered']:>5} {r['status'] or '':<10}")
+    # 7-day aggregate stats
+    from datetime import datetime, timedelta, timezone
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    agg = conn.execute(
+        "SELECT COUNT(*) as n, SUM(collected) as col, SUM(deduped) as ded, SUM(rated) as rat, SUM(delivered) as del FROM runs WHERE started_at >= ?",
+        (cutoff,),
+    ).fetchone()
+    print()
+    print("--- 7-day stats ---")
+    print(f"  runs: {agg['n'] or 0}")
+    print(f"  collected: {agg['col'] or 0}  deduped: {agg['ded'] or 0}  rated: {agg['rat'] or 0}  delivered: {agg['del'] or 0}")
+    # Push success rate
+    digests = conn.execute(
+        "SELECT channel, status, COUNT(*) as n FROM digests WHERE created_at >= ? GROUP BY channel, status",
+        (cutoff,),
+    ).fetchall()
+    if digests:
+        print("  digest delivery:")
+        for d in digests:
+            print(f"    {d['channel']:<10} {d['status']:<10} {d['n']}")
     conn.close()
     return 0
 

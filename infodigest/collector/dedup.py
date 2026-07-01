@@ -83,3 +83,37 @@ def dedup_entries(
         kept.append(entry)
 
     return kept, dropped
+
+
+
+def dedup_cross_source(
+    entries: list[Entry],
+    similarity_threshold: float = 0.8,
+) -> tuple[list[Entry], int]:
+    """Cross-source dedup: when two entries from different sources have
+    near-identical titles (Jaccard >= threshold), keep only the one with
+    higher source authority (entry.raw['authority']). If equal, keep first-seen.
+
+    Returns (kept, num_dropped). Operates on title similarity only.
+    """
+    # Sort by authority desc so highest-authority version is seen first
+    sortable = sorted(entries, key=lambda e: -float(e.raw.get("authority", 0.5)))
+    seen_uids: set[str] = set()
+    kept: list[Entry] = []
+    dropped = 0
+    for entry in sortable:
+        if entry.uid in seen_uids:
+            dropped += 1
+            continue
+        seen_uids.add(entry.uid)
+        e_words = _word_set(entry.title)
+        is_dup = False
+        for prev in kept:
+            if jaccard(e_words, _word_set(prev.title)) >= similarity_threshold:
+                is_dup = True
+                break
+        if is_dup:
+            dropped += 1
+            continue
+        kept.append(entry)
+    return kept, dropped

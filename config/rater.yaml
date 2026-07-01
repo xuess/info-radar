@@ -39,6 +39,13 @@ penalty_words:
   震惊: 0.5
   惊人: 0.5
   shocking: 0.5
+  盘点: 0.3
+  必看: 0.4
+  重磅: 0.4
+  你绝对: 0.5
+  amazing: 0.4
+  incredible: 0.4
+  clickbait: 0.5
 
 dedup_similarity: 0.8
 dedup_window_days: 7
