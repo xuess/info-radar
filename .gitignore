@@ -33,3 +33,4 @@ data/failed_digests/
 .idea/
 .vscode/
 *.swp
+data/translate_cache.json
