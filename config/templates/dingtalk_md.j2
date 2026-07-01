@@ -1,6 +1,4 @@
-{# DingTalk markdown message template. A-grade entries grouped first under
-   a "推荐" header, then B-grade under "关注". Entries already sorted by
-   raw_score DESC by pending_digest. #}
+{# DingTalk markdown template with grade grouping + translation support. #}
 # 📰 InfoDigest 每日推送
 
 > {{ generated_at }} · 共 {{ entries|length }} 条 · 来源 {{ sources|length }}
@@ -20,6 +18,8 @@
 {% endif %}
 {{ grade_emoji.get(entry.grade, "•") }} [{{ entry.title }}]({{ entry.link }})
 {% if entry.summary %}{{ entry.summary[:150] }}{% if entry.summary|length > 150 %}...{% endif %}{% endif %}
+{% if entry.raw.title_zh %}📝 {{ entry.raw.title_zh }}{% endif %}
+{% if entry.raw.summary_zh %}{{ entry.raw.summary_zh[:120] }}{% endif %}
 
 {% endfor %}
 ---

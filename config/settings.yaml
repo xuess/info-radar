@@ -4,7 +4,6 @@ storage:
   failed_digests_dir: data/failed_digests
 
 schedule:
-  # Local (APScheduler) scheduling; GitHub Actions uses its own cron.
   cron: "0 1,9 * * *"
 
 delivery:
@@ -22,3 +21,8 @@ collect:
   max_retries: 3
   user_agent: "InfoDigest/1.0 (+https://github.com/xuess/info-radar)"
   respect_robots: true
+
+translate:
+  enabled: true
+  target_lang: zh-CN
+  cache_file: data/translate_cache.json

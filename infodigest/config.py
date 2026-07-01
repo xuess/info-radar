@@ -70,6 +70,13 @@ class ScheduleConfig:
 
 
 @dataclass(frozen=True)
+class TranslateConfig:
+    enabled: bool = True
+    target_lang: str = "zh-CN"
+    cache_file: str = "data/translate_cache.json"
+
+
+@dataclass(frozen=True)
 class RaterConfig:
     weights: dict[str, float] = field(
         default_factory=lambda: {
@@ -102,6 +109,7 @@ class Config:
     storage: StorageConfig = field(default_factory=StorageConfig)
     schedule: ScheduleConfig = field(default_factory=ScheduleConfig)
     rater: RaterConfig = field(default_factory=RaterConfig)
+    translate: TranslateConfig = field(default_factory=TranslateConfig)
     config_dir: Path = CONFIG_DIR
 
     @property
@@ -198,6 +206,11 @@ def load_config(config_dir: Path | None = None) -> Config:
             penalty_words=dict(rater_raw.get("penalty_words") or {}),
             dedup_similarity=float(rater_raw.get("dedup_similarity", 0.8)),
             dedup_window_days=int(rater_raw.get("dedup_window_days", 7)),
+        ),
+        translate=TranslateConfig(
+            enabled=bool(settings.get("translate", {}).get("enabled", True)),
+            target_lang=settings.get("translate", {}).get("target_lang", "zh-CN"),
+            cache_file=settings.get("translate", {}).get("cache_file", "data/translate_cache.json"),
         ),
         config_dir=cdir,
     )

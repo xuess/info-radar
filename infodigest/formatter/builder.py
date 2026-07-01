@@ -1,7 +1,8 @@
 """Formatter builder: Jinja2 rendering + message segmentation.
 
 Pure build, no LLM. Splits entries into batches by max_entries and max_bytes,
-renders each batch with the appropriate channel template.
+renders each batch with the appropriate channel template. Supports automatic
+translation of English entries to Chinese via Google Translate (no LLM).
 """
 from __future__ import annotations
 
@@ -13,7 +14,10 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from ..collector.parser import Entry
-from ..config import CONFIG_DIR, DeliveryConfig, utc_now
+from ..config import CONFIG_DIR, DeliveryConfig, TranslateConfig, utc_now
+from .translator import load_cache, save_cache, should_translate, translate_text
+
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 @dataclass(frozen=True)
@@ -55,6 +59,51 @@ def _estimate_bytes(content: str) -> int:
     return len(content.encode("utf-8"))
 
 
+def _translate_entry(entry: Entry, target_lang: str, source_langs: dict[str, str]) -> Entry:
+    """Translate an entry's title and summary if source language differs from target.
+    Returns a new Entry with translated fields in raw['title_zh'] and raw['summary_zh'].
+    """
+    src_lang = source_langs.get(entry.source_id, "")
+    if not should_translate(src_lang, target_lang):
+        return entry
+    new_raw = dict(entry.raw)
+    title_zh = translate_text(entry.title, source_lang=src_lang, target_lang=target_lang)
+    if title_zh:
+        new_raw["title_zh"] = title_zh
+    if entry.summary:
+        summary_zh = translate_text(entry.summary, source_lang=src_lang, target_lang=target_lang)
+        if summary_zh:
+            new_raw["summary_zh"] = summary_zh
+    if new_raw != entry.raw:
+        return Entry(
+            uid=entry.uid, source_id=entry.source_id, title=entry.title,
+            summary=entry.summary, link=entry.link, published=entry.published,
+            raw=new_raw,
+        )
+    return entry
+
+
+def translate_entries(
+    entries: list[Entry],
+    translate_cfg: TranslateConfig,
+    source_langs: dict[str, str] | None = None,
+) -> list[Entry]:
+    """Translate entries that are in a different language than target.
+    source_langs: mapping of source_id -> language code (e.g. "en", "zh").
+    Uses disk cache for translation persistence across runs."""
+    if not translate_cfg.enabled:
+        return entries
+    if source_langs is None:
+        source_langs = {}
+    cache_path = Path(translate_cfg.cache_file)
+    if not cache_path.is_absolute():
+        cache_path = REPO_ROOT / cache_path
+    load_cache(cache_path)
+    translated = [_translate_entry(e, translate_cfg.target_lang, source_langs) for e in entries]
+    save_cache()
+    return translated
+
+
 def segment_entries(
     entries: list[Entry],
     max_entries: int = 20,
@@ -86,8 +135,7 @@ def _build_feishu_card(
     sources: list[str],
     generated_at: str,
 ) -> dict:
-    """Build a Feishu interactive card JSON structure programmatically.
-    No template fragility — pure Python dict -> json.dumps."""
+    """Build a Feishu interactive card JSON structure programmatically."""
     elements = [
         {
             "tag": "div",
@@ -106,15 +154,24 @@ def _build_feishu_card(
         grade = entry.grade
         label = _grade_label(grade)
 
+        # Build translation block if available
+        title_zh = entry.raw.get("title_zh", "")
+        summary_zh = entry.raw.get("summary_zh", "")
+        translated_block = ""
+        if title_zh:
+            translated_block = f"\n📝 {title_zh}"
+        if summary_zh:
+            translated_block += f"\n{summary_zh[:100]}"
+
         if grade == "A":
             elements.append(
                 {
                     "tag": "note",
-                    "elements": [{"tag": "lark_md", "content": f"🔥 **[A 推荐]** [{title}]({link})\n{summary}"}],
+                    "elements": [{"tag": "lark_md", "content": f"🔥 **[A 推荐]** [{title}]({link})\n{summary}{translated_block}"}],
                 }
             )
         else:
-            content = f"{label} [{title}]({link})\n{summary}" if summary else f"{label} [{title}]({link})"
+            content = f"{label} [{title}]({link})\n{summary}{translated_block}" if summary else f"{label} [{title}]({link}){translated_block}"
             elements.append(
                 {
                     "tag": "div",
@@ -147,10 +204,13 @@ def render_feishu(
     sources: list[str] | None = None,
     templates_dir: Path | None = None,
     delivery: DeliveryConfig | None = None,
+    translate_cfg: TranslateConfig | None = None,
+    source_langs: dict[str, str] | None = None,
 ) -> list[RenderedMessage]:
-    """Render entries into Feishu interactive card JSON messages, segmented.
-    Uses Python dict construction + json.dumps for guaranteed valid JSON."""
+    """Render entries into Feishu interactive card JSON messages, segmented."""
     d = delivery or DeliveryConfig()
+    if translate_cfg and translate_cfg.enabled:
+        entries = translate_entries(entries, translate_cfg, source_langs)
     batches = segment_entries(entries, d.max_entries_per_message, d.max_message_bytes) or [[]]
     src_list = sources or []
     generated_at = utc_now().strftime("%Y-%m-%d %H:%M UTC")
@@ -167,12 +227,16 @@ def render_dingtalk(
     sources: list[str] | None = None,
     templates_dir: Path | None = None,
     delivery: DeliveryConfig | None = None,
+    translate_cfg: TranslateConfig | None = None,
+    source_langs: dict[str, str] | None = None,
 ) -> list[RenderedMessage]:
     """Render entries into DingTalk markdown messages, segmented."""
     tdir = templates_dir or (CONFIG_DIR / "templates")
     env = _make_env(tdir)
     template = env.get_template("dingtalk_md.j2")
     d = delivery or DeliveryConfig()
+    if translate_cfg and translate_cfg.enabled:
+        entries = translate_entries(entries, translate_cfg, source_langs)
     batches = segment_entries(entries, d.max_entries_per_message, d.max_message_bytes) or [[]]
     messages = []
     for i, batch in enumerate(batches):

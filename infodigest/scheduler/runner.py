@@ -163,6 +163,10 @@ def run(config: Config, db_path: str | None = None, feishu=None, dingtalk=None) 
                 dingtalk = DingTalkChannel(delivery=config.delivery)
 
             sources_list = list({e.source_id for e in pending})
+            # Build source language map for translation
+            source_langs = {}
+            for src in config.sources:
+                source_langs[src.id] = src.lang
             failed_dir = config.storage.failed_digests_dir
             if not Path(failed_dir).is_absolute():
                 failed_dir = str(Path(db).parent / "failed_digests")
@@ -172,7 +176,8 @@ def run(config: Config, db_path: str | None = None, feishu=None, dingtalk=None) 
             errors: list[str] = []
 
             if feishu is not None:
-                msgs = render_feishu(pending, sources=sources_list, delivery=config.delivery)
+                msgs = render_feishu(pending, sources=sources_list, delivery=config.delivery,
+                                      translate_cfg=config.translate, source_langs=source_langs)
                 # Create digest records
                 digest_ids = [repo.create_digest("feishu", m.entry_count) for m in msgs]
                 ok, fail, errs = _deliver(feishu, msgs, repo, digest_ids, failed_dir)
@@ -184,7 +189,8 @@ def run(config: Config, db_path: str | None = None, feishu=None, dingtalk=None) 
                     repo.mark_entries_digest([e.uid for e in pending], digest_ids[0])
 
             if dingtalk is not None:
-                msgs = render_dingtalk(pending, sources=sources_list, delivery=config.delivery)
+                msgs = render_dingtalk(pending, sources=sources_list, delivery=config.delivery,
+                                        translate_cfg=config.translate, source_langs=source_langs)
                 digest_ids = [repo.create_digest("dingtalk", m.entry_count) for m in msgs]
                 ok, fail, errs = _deliver(dingtalk, msgs, repo, digest_ids, failed_dir)
                 delivered += ok
