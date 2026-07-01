@@ -135,3 +135,53 @@ class TestDingTalkChannel:
             time.sleep = orig
         assert result.ok
         assert calls["n"] == 3
+
+    def test_context_manager(self):
+        # Use mock transport to avoid real network
+        transport = httpx.MockTransport(lambda req: httpx.Response(200, content=json.dumps({"errcode": 0})))
+        with DingTalkChannel(
+            webhook="https://oapi.dingtalk.com/robot/send?access_token=x",
+            delivery=DeliveryConfig(retry_max=1),
+            limiter=TokenBucket(10, 100),
+            client=httpx.Client(transport=transport),
+        ) as ch:
+            result = ch.send("# Title\nbody")
+            assert result.ok
+
+    def test_transport_error_retries(self):
+        calls = {"n": 0}
+
+        class FakeClient:
+            def post(self, url, content=None, headers=None):
+                calls["n"] += 1
+                raise httpx.ReadTimeout("read timeout")
+
+            def close(self):
+                pass
+
+        import time
+        ch = DingTalkChannel(
+            webhook="https://x.com",
+            delivery=DeliveryConfig(retry_max=2),
+            limiter=TokenBucket(10, 100),
+            client=FakeClient(),
+        )
+        orig = time.sleep
+        time.sleep = lambda s: None
+        try:
+            result = ch.send("# Title\nbody")
+        finally:
+            time.sleep = orig
+        assert not result.ok
+        assert "read timeout" in (result.error or "")
+        assert calls["n"] == 2  # retry_max=2 -> 2 total attempts
+
+    def test_get_client_creates_real_client(self):
+        ch = DingTalkChannel(
+            webhook="https://x.com",
+            delivery=DeliveryConfig(retry_max=1),
+            limiter=TokenBucket(10, 100),
+        )
+        client = ch._get_client()
+        assert client is not None
+        ch.close()

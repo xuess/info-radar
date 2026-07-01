@@ -91,7 +91,8 @@ class TestRenderDingtalk:
     def test_contains_grade_marker(self):
         entries = [_scored_entry("u1", "AI news", grade="A")]
         msgs = render_dingtalk(entries, templates_dir=TEMPLATES)
-        assert "[A]" in msgs[0].content
+        assert "A 级推荐" in msgs[0].content
+        assert "🔥" in msgs[0].content
 
     def test_segmentation_produces_multiple_messages(self):
         entries = [_scored_entry(f"u{i}", f"Title {i}", "x" * 5000) for i in range(10)]

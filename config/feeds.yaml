@@ -55,3 +55,31 @@ sources:
     lang: en
     tags: [github, opensource]
     enabled: true
+  - id: secwiki
+    url: https://www.sec-wiki.com/news/rss
+    category: security
+    authority: 0.75
+    lang: zh
+    tags: [security, vulnerability]
+    enabled: true
+  - id: freebuf
+    url: https://www.freebuf.com/feed
+    category: security
+    authority: 0.7
+    lang: zh
+    tags: [security]
+    enabled: true
+  - id: smashingmag
+    url: https://www.smashingmagazine.com/feed/
+    category: design
+    authority: 0.8
+    lang: en
+    tags: [design, ux, css]
+    enabled: true
+  - id: producthunt
+    url: https://www.producthunt.com/feed
+    category: product
+    authority: 0.75
+    lang: en
+    tags: [product, startup]
+    enabled: true

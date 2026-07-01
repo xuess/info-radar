@@ -143,3 +143,52 @@ class TestFeishuChannel:
             time.sleep = orig
         assert result.ok
         assert calls["n"] == 3
+
+    def test_context_manager_closes_client(self):
+        transport = httpx.MockTransport(_ok_handler)
+        with FeishuChannel(
+            webhook="https://x.com",
+            delivery=DeliveryConfig(retry_max=1),
+            limiter=TokenBucket(10, 100),
+            client=httpx.Client(transport=transport),
+        ) as ch:
+            result = ch.send(json.dumps({"msg_type": "interactive", "card": {}}))
+            assert result.ok
+
+    def test_transport_error_retries_then_fails(self):
+        calls = {"n": 0}
+
+        class FakeClient:
+            def post(self, url, content=None, headers=None):
+                calls["n"] += 1
+                raise httpx.ConnectError("conn refused")
+
+            def close(self):
+                pass
+
+        import time
+        ch = FeishuChannel(
+            webhook="https://x.com",
+            delivery=DeliveryConfig(retry_max=2),
+            limiter=TokenBucket(10, 100),
+            client=FakeClient(),
+        )
+        orig = time.sleep
+        time.sleep = lambda s: None
+        try:
+            result = ch.send(json.dumps({"msg_type": "interactive", "card": {}}))
+        finally:
+            time.sleep = orig
+        assert not result.ok
+        assert "conn refused" in (result.error or "")
+        assert calls["n"] == 2  # retry_max=2 -> 2 total attempts
+
+    def test_get_client_creates_real_client(self):
+        ch = FeishuChannel(
+            webhook="https://x.com",
+            delivery=DeliveryConfig(retry_max=1),
+            limiter=TokenBucket(10, 100),
+        )
+        client = ch._get_client()
+        assert client is not None
+        ch.close()

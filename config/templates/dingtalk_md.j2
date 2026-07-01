@@ -1,11 +1,24 @@
-{# DingTalk markdown message template. DingTalk supports a subset of markdown. #}
+{# DingTalk markdown message template. A-grade entries grouped first under
+   a "推荐" header, then B-grade under "关注". Entries already sorted by
+   raw_score DESC by pending_digest. #}
 # 📰 InfoDigest 每日推送
 
 > {{ generated_at }} · 共 {{ entries|length }} 条 · 来源 {{ sources|length }}
 
+{% set ns = namespace(seen_a=false, seen_b=false) %}
 {% set grade_emoji = {"A": "🔥", "B": "📌", "C": "📄"} %}
 {% for entry in entries %}
-{{ grade_emoji.get(entry.grade, "•") }} **[{{ entry.grade }}]** [{{ entry.title }}]({{ entry.link }})
+{% if entry.grade == "A" and not ns.seen_a %}
+## 🔥 A 级推荐
+{% set ns.seen_a = true %}
+{% elif entry.grade == "B" and not ns.seen_b and ns.seen_a %}
+## 📌 B 级关注
+{% set ns.seen_b = true %}
+{% elif entry.grade == "B" and not ns.seen_b and not ns.seen_a %}
+## 📌 B 级关注
+{% set ns.seen_b = true %}
+{% endif %}
+{{ grade_emoji.get(entry.grade, "•") }} [{{ entry.title }}]({{ entry.link }})
 {% if entry.summary %}{{ entry.summary[:150] }}{% if entry.summary|length > 150 %}...{% endif %}{% endif %}
 
 {% endfor %}
