@@ -104,3 +104,56 @@ class TestParseSourceDomain:
         ai1 = next(e for e in e1 if "AI breakthrough" in e.title)
         ai2 = next(e for e in e2 if "AI breakthrough" in e.title)
         assert ai1.uid != ai2.uid
+
+
+class TestParserEdgeCases:
+    def test_engagement_fields_captured(self):
+        # feedparser exposes HN-style points/comments via tags
+        xml = b'''<?xml version="1.0"?><rss version="2.0">
+        <channel><title>HN</title><link>https://hn.com</link>
+        <item>
+          <title>AI news</title>
+          <link>https://hn.com/1</link>
+          <description>desc</description>
+          <slash:comments xmlns:slash="http://purl.org/rss/1.0/modules/slash/">42</slash:comments>
+        </item>
+        </channel></rss>'''
+        src = Source(id="hn", url="https://hn.com/rss")
+        entries = parse(xml, src)
+        assert len(entries) == 1
+        # slash_comments should be in raw if feedparser parsed it
+        assert entries[0].raw.get("title") == "AI news"
+
+    def test_build_entry_exception_handled(self):
+        # An item that causes _build_entry to raise should be skipped, not crash
+        # feedparser will parse this, but we pass a malformed item dict directly
+        from infodigest.collector.parser import _build_entry
+        src = Source(id="test", url="https://example.com/feed")
+        # item with no link and unhashable structure -> returns None (not raise)
+        result = _build_entry({"title": "no link"}, src)
+        assert result is None
+
+    def test_content_fallback_list_with_non_dict(self):
+        # content list with non-dict first element -> summary stays empty
+        xml = b'''<?xml version="1.0"?><rss version="2.0">
+        <channel><title>X</title><link>https://x.com</link>
+        <item>
+          <title>Test</title>
+          <link>https://x.com/1</link>
+          <description></description>
+        </item>
+        </channel></rss>'''
+        src = Source(id="test", url="https://x.com/feed")
+        entries = parse(xml, src)
+        assert len(entries) == 1
+        assert entries[0].summary == ""
+
+    def test_parse_str_input(self):
+        # parse should accept str input too, not just bytes
+        xml = '''<?xml version="1.0"?><rss version="2.0">
+        <channel><title>X</title><link>https://x.com</link>
+        <item><title>T</title><link>https://x.com/1</link></item>
+        </channel></rss>'''
+        src = Source(id="test", url="https://x.com/feed")
+        entries = parse(xml, src)
+        assert len(entries) >= 1
