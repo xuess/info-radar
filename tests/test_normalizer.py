@@ -94,3 +94,33 @@ class TestParseTime:
         dt = parse_time(datetime(2026, 7, 2, 9, 0, 0))
         assert dt is not None
         assert dt.tzinfo == timezone.utc
+
+    def test_aware_datetime_converted(self):
+        from datetime import timedelta
+        # +08:00 timezone -> UTC
+        tz = timezone(timedelta(hours=8))
+        dt = parse_time(datetime(2026, 7, 2, 17, 0, 0, tzinfo=tz))
+        assert dt is not None
+        assert dt.tzinfo == timezone.utc
+        assert dt.hour == 9  # 17:00+08 = 09:00 UTC
+
+    def test_iso_string_with_tz(self):
+        dt = parse_time("2026-07-02T09:00:00+08:00")
+        assert dt is not None
+        assert dt.tzinfo == timezone.utc
+        assert dt.hour == 1  # 09:00+08 = 01:00 UTC
+
+    def test_struct_time_invalid_returns_none(self):
+        from time import struct_time
+        # Invalid month/day
+        st = struct_time((2026, 13, 32, 25, 61, 62, 0, 0, 0))
+        assert parse_time(st) is None
+
+    def test_non_string_non_datetime_returns_none(self):
+        assert parse_time(12345) is None
+        assert parse_time([]) is None
+
+    def test_iso_with_milliseconds(self):
+        dt = parse_time("2026-07-02T09:00:00.123Z")
+        assert dt is not None
+        assert dt.year == 2026
