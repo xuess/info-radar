@@ -235,3 +235,46 @@ class TestScoreMany:
     def test_empty_batch(self):
         ctx = ScoreContext(now=NOW, rater=_rater())
         assert score_many([], ctx) == []
+
+
+class TestScorerEdgeCases:
+    def test_score_context_build_with_now(self):
+        from infodigest.rater.scorer import ScoreContext
+        ctx = ScoreContext.build(_rater(), recent_titles=["a", "b"], now=NOW)
+        assert ctx.now == NOW
+        assert ctx.recent_titles == ("a", "b")
+
+    def test_score_context_build_defaults_now(self):
+        from infodigest.rater.scorer import ScoreContext
+        ctx = ScoreContext.build(_rater())
+        assert ctx.now is not None  # utc_now()
+
+    def test_score_with_naive_published(self):
+        # published without tzinfo should be treated as UTC
+        from datetime import datetime
+        naive = datetime(2026, 7, 2, 12, 0)  # no tzinfo
+        e = _entry(title="x", published=naive)
+        ctx = ScoreContext(now=NOW, rater=_rater())
+        se = score(e, ctx)
+        assert se.components["freshness"] == 1.0  # same time -> delta 0
+
+    def test_engagement_invalid_value_skipped(self):
+        e = _entry(title="x", raw={"points": "not_a_number"})
+        ctx = ScoreContext(now=NOW, rater=_rater())
+        se = score(e, ctx)
+        assert se.components["engagement"] == 0.0
+
+    def test_score_without_rater_uses_defaults(self):
+        # ctx.rater = None -> scorer falls back to RaterConfig() defaults
+        e = _entry(title="AI news", published=NOW, authority=0.9)
+        ctx = ScoreContext(now=NOW, rater=None)
+        se = score(e, ctx)
+        assert 0 <= se.raw_score <= 100
+        assert se.grade in ("A", "B", "C")
+
+    def test_jaccard_one_empty_one_not(self):
+        from infodigest.rater.scorer import _jaccard
+        a = frozenset("hello".split())
+        b = frozenset()
+        # one empty, one not -> union non-empty -> 0/len
+        assert _jaccard(a, b) == 0.0
