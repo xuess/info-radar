@@ -44,6 +44,8 @@ class RunReport:
 
 def _collect_one(source: Source, config: Config, repo: Repo) -> list[Entry]:
     """Fetch + parse a single source. Returns entries (empty on failure)."""
+    # Ensure source record exists (for cache + disable tracking) before fetch
+    repo.upsert_source(source)
     etag, last_mod = repo.get_source_cache(source.id)
     try:
         result = fetch(source.url, config.collect, etag=etag, last_modified=last_mod)

@@ -181,3 +181,48 @@ class Repo:
             (utc_now().isoformat(), collected, deduped, rated, delivered, status, run_id),
         )
         self.conn.commit()
+
+
+    def source_health(self, since_days: int = 30) -> list[dict]:
+        """Return per-source health stats: total entries, A-grade count,
+        A-grade ratio, current authority. Used for auto-weight adjustment."""
+        from datetime import timedelta
+        cutoff = (utc_now() - timedelta(days=since_days)).isoformat()
+        rows = self.conn.execute(
+            """
+            SELECT s.id, s.authority, s.enabled,
+                   COUNT(e.uid) as total,
+                   SUM(CASE WHEN e.grade = 'A' THEN 1 ELSE 0 END) as a_count
+            FROM sources s
+            LEFT JOIN entries e ON e.source_id = s.id AND e.created_at >= ?
+            GROUP BY s.id
+            """,
+            (cutoff,),
+        ).fetchall()
+        result = []
+        for r in rows:
+            total = r["total"] or 0
+            a_count = r["a_count"] or 0
+            result.append({
+                "id": r["id"],
+                "authority": r["authority"],
+                "enabled": bool(r["enabled"]),
+                "total_entries": total,
+                "a_count": a_count,
+                "a_ratio": (a_count / total) if total > 0 else 0.0,
+            })
+        return result
+
+    def adjust_authority(self, base_weight: float = 0.7, recent_weight: float = 0.3) -> None:
+        """Auto-adjust source authority: adjusted = base_weight*base + recent_weight*recent_ARate.
+        Sources with no recent entries keep their base authority."""
+        for h in self.source_health(30):
+            if h["total_entries"] == 0:
+                continue
+            adjusted = base_weight * h["authority"] + recent_weight * h["a_ratio"]
+            adjusted = max(0.0, min(1.0, adjusted))
+            self.conn.execute(
+                "UPDATE sources SET authority=? WHERE id=?",
+                (adjusted, h["id"]),
+            )
+        self.conn.commit()

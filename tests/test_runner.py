@@ -151,3 +151,45 @@ class TestRunPipeline:
         assert report.status == "ok"
         report.errors.append("something")
         assert report.status == "partial"
+
+    def test_run_304_not_modified(self, tmp_db, monkeypatch):
+        from infodigest.collector.fetcher import FetchResult
+        import infodigest.scheduler.runner as runner_mod
+        config = _make_config(tmp_db, FIXTURES / "rss2_sample.xml")
+
+        def fake_fetch_304(url, cfg, etag=None, last_modified=None):
+            return FetchResult(content=b"", status=304, not_modified=True, url=url)
+
+        monkeypatch.setattr(runner_mod, "fetch", fake_fetch_304)
+        report = run(config, db_path=tmp_db, feishu=FakeChannel(), dingtalk=FakeChannel())
+        assert report.collected == 0
+        assert report.status == "ok"
+
+    def test_run_fetch_error_disables_source(self, tmp_db, monkeypatch):
+        from infodigest.collector.fetcher import FetchError
+        import infodigest.scheduler.runner as runner_mod
+        config = _make_config(tmp_db, FIXTURES / "rss2_sample.xml")
+
+        def fake_fetch_fail(url, cfg, etag=None, last_modified=None):
+            raise FetchError("fetch failed: HTTP 500")
+
+        monkeypatch.setattr(runner_mod, "fetch", fake_fetch_fail)
+        report = run(config, db_path=tmp_db, feishu=FakeChannel(), dingtalk=FakeChannel())
+        assert report.collected == 0
+        # source should be disabled in db
+        from infodigest.storage.models import init_db
+        conn = init_db(tmp_db)
+        row = conn.execute("SELECT enabled FROM sources WHERE id='fixture'").fetchone()
+        assert row["enabled"] == 0
+        conn.close()
+
+    def test_run_dingtalk_only(self, tmp_db, monkeypatch):
+        config = _make_config(tmp_db, FIXTURES / "rss2_sample.xml")
+        _patch_file_fetch(monkeypatch, FIXTURES / "rss2_sample.xml")
+        dingtalk = FakeChannel(ok=True)
+        # feishu disabled
+        config = _make_config(tmp_db, FIXTURES / "rss2_sample.xml")
+        # disable feishu
+        report = run(config, db_path=tmp_db, feishu=None, dingtalk=dingtalk)
+        assert report.delivered >= 1
+        assert len(dingtalk.sent) > 0

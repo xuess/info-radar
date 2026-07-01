@@ -184,3 +184,46 @@ class TestRuns:
         assert row["deduped"] == 2
         assert row["status"] == "ok"
         assert row["ended_at"] is not None
+
+
+class TestSourceHealth:
+    def test_source_health_empty(self, repo):
+        repo.upsert_source(_source("hn"))
+        health = repo.source_health(30)
+        assert len(health) == 1
+        assert health[0]["id"] == "hn"
+        assert health[0]["total_entries"] == 0
+        assert health[0]["a_ratio"] == 0.0
+
+    def test_source_health_with_entries(self, repo):
+        repo.upsert_source(_source("hn"))
+        e1 = _entry("u1", "A grade", source_id="hn")
+        e2 = _entry("u2", "B grade", source_id="hn")
+        e3 = _entry("u3", "C grade", source_id="hn")
+        repo.upsert_entries([e1, e2, e3])
+        repo.update_score(ScoredEntry(entry=e1, raw_score=85, grade="A", components={}))
+        repo.update_score(ScoredEntry(entry=e2, raw_score=60, grade="B", components={}))
+        repo.update_score(ScoredEntry(entry=e3, raw_score=30, grade="C", components={}))
+        health = repo.source_health(30)
+        hn = next(h for h in health if h["id"] == "hn")
+        assert hn["total_entries"] == 3
+        assert hn["a_count"] == 1
+        assert abs(hn["a_ratio"] - 1 / 3) < 0.01
+
+    def test_adjust_authority(self, repo):
+        repo.upsert_source(_source("hn"))  # authority 0.8
+        e1 = _entry("u1", "A grade", source_id="hn")
+        e2 = _entry("u2", "B grade", source_id="hn")
+        repo.upsert_entries([e1, e2])
+        repo.update_score(ScoredEntry(entry=e1, raw_score=85, grade="A", components={}))
+        repo.update_score(ScoredEntry(entry=e2, raw_score=60, grade="B", components={}))
+        repo.adjust_authority(base_weight=0.7, recent_weight=0.3)
+        row = repo.conn.execute("SELECT authority FROM sources WHERE id='hn'").fetchone()
+        # adjusted = 0.7*0.8 + 0.3*0.5 (1 A out of 2) = 0.56 + 0.15 = 0.71
+        assert abs(row["authority"] - 0.71) < 0.01
+
+    def test_adjust_authority_no_entries_unchanged(self, repo):
+        repo.upsert_source(_source("hn"))  # authority 0.8
+        repo.adjust_authority()
+        row = repo.conn.execute("SELECT authority FROM sources WHERE id='hn'").fetchone()
+        assert row["authority"] == 0.8  # unchanged
