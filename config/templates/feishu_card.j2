@@ -1,0 +1,35 @@
+{# Feishu interactive card JSON template. The whole object is built here,
+   no LLM. DingTalk uses dingtalk_md.j2 instead. #}
+{
+  "msg_type": "interactive",
+  "card": {
+    "config": { "wide_screen_mode": true },
+    "header": {
+      "title": { "tag": "plain_text", "content": "📰 InfoDigest 每日推送" },
+      "template": "blue"
+    },
+    "elements": [
+      {
+        "tag": "div",
+        "text": { "tag": "lark_md", "content": "**{{ generated_at }}** · 共 {{ entries|length }} 条 · 来源 {{ sources|length }}" }
+      },
+      { "tag": "hr" },
+      {% for entry in entries %}
+      {
+        "tag": "div",
+        "text": {
+          "tag": "lark_md",
+          "content": "{{ grade_label(entry.grade) }} [{{ entry.title }}]({{ entry.link }})\n{{ entry.summary[:120] }}{% if entry.summary|length > 120 %}...{% endif %}"
+        }
+      },
+      { "tag": "hr" },
+      {% endfor %}
+      {
+        "tag": "note",
+        "elements": [
+          { "tag": "plain_text", "content": "InfoDigest · 开源自驱信息收集系统" }
+        ]
+      }
+    ]
+  }
+}

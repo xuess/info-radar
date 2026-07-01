@@ -1,0 +1,13 @@
+{# DingTalk markdown message template. DingTalk supports a subset of markdown. #}
+# 📰 InfoDigest 每日推送
+
+> {{ generated_at }} · 共 {{ entries|length }} 条 · 来源 {{ sources|length }}
+
+{% set grade_emoji = {"A": "🔥", "B": "📌", "C": "📄"} %}
+{% for entry in entries %}
+{{ grade_emoji.get(entry.grade, "•") }} **[{{ entry.grade }}]** [{{ entry.title }}]({{ entry.link }})
+{% if entry.summary %}{{ entry.summary[:150] }}{% if entry.summary|length > 150 %}...{% endif %}{% endif %}
+
+{% endfor %}
+---
+_InfoDigest · 开源自驱信息收集系统_

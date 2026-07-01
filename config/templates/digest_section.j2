@@ -1,0 +1,7 @@
+{# Reusable section for a single digest entry batch. Renders a list of entries
+   as markdown lines. Used by dingtalk_md.j2 and embeddable elsewhere. #}
+{% for entry in entries %}
+**[{{ entry.grade }}]** [{{ entry.title }}]({{ entry.link }}){% if entry.source_id %} · {{ entry.source_id }}{% endif %}
+{% if entry.summary %}{{ entry.summary[:120] }}{% if entry.summary|length > 120 %}…{% endif %}{% endif %}
+
+{% endfor %}
