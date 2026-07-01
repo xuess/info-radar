@@ -1,5 +1,5 @@
-{# Feishu interactive card JSON template. The whole object is built here,
-   no LLM. A-grade entries get a highlighted note block; others use plain div. #}
+{# Feishu interactive card JSON template. A-grade entries highlighted.
+   Uses loop.last to avoid trailing commas. #}
 {
   "msg_type": "interactive",
   "card": {
@@ -21,7 +21,7 @@
         "elements": [
           { "tag": "lark_md", "content": "🔥 **[A 推荐]** [{{ entry.title }}]({{ entry.link }})\n{{ entry.summary[:120] }}{% if entry.summary|length > 120 %}...{% endif %}" }
         ]
-      },
+      }{% if not loop.last %},{% endif %}
       {% else %}
       {
         "tag": "div",
@@ -29,10 +29,9 @@
           "tag": "lark_md",
           "content": "{{ grade_label(entry.grade) }} [{{ entry.title }}]({{ entry.link }})\n{{ entry.summary[:120] }}{% if entry.summary|length > 120 %}...{% endif %}"
         }
-      },
+      }{% if not loop.last %},{% endif %}
       {% endif %}
-      { "tag": "hr" },
-      {% endfor %}
+      {% endfor %},
       {
         "tag": "note",
         "elements": [

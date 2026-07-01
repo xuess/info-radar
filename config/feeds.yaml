@@ -90,10 +90,3 @@ sources:
     lang: en
     tags: [linux, kernel, security]
     enabled: true
-  - id: infoq_cn
-    url: https://www.infoq.cn/feed
-    category: tech
-    authority: 0.75
-    lang: zh
-    tags: [news, dev]
-    enabled: true
