@@ -114,7 +114,7 @@ class Repo:
         placeholders = ",".join("?" * len(allowed))
         rows = self.conn.execute(
             f"""
-            SELECT uid, source_id, title, summary, link, published
+            SELECT uid, source_id, title, summary, link, published, raw_score, grade
             FROM entries
             WHERE grade IN ({placeholders}) AND digest_id IS NULL
             ORDER BY raw_score DESC, published DESC
@@ -132,7 +132,7 @@ class Repo:
             entries.append(Entry(
                 uid=r["uid"], source_id=r["source_id"], title=r["title"],
                 summary=r["summary"] or "", link=r["link"],
-                published=pub, raw={},
+                published=pub, raw={"grade": r["grade"], "raw_score": r["raw_score"]},
             ))
         return entries
 

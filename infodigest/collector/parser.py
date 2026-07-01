@@ -27,6 +27,11 @@ class Entry:
     published: datetime | None
     raw: dict[str, Any] = field(default_factory=dict, repr=False)
 
+    @property
+    def grade(self) -> str:
+        """Grade (A/B/C) if scored, else empty string. Stored in raw by repo."""
+        return str(self.raw.get("grade", ""))
+
 
 def _build_entry(item: dict, source: Source) -> Entry | None:
     """Build an Entry from a feedparser item dict. Returns None if no link."""
