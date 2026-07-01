@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Sample Tech Blog</title>
+    <link>https://example.com/blog</link>
+    <description>A sample RSS 2.0 feed for testing.</description>
+    <language>en</language>
+    <item>
+      <title>AI breakthrough: new reasoning model</title>
+      <link>https://example.com/blog/ai-breakthrough</link>
+      <description>&lt;p&gt;A new &lt;b&gt;reasoning model&lt;/b&gt; achieves state-of-the-art results.&lt;/p&gt;</description>
+      <pubDate>Wed, 02 Jul 2026 09:00:00 GMT</pubDate>
+      <guid>https://example.com/blog/ai-breakthrough</guid>
+    </item>
+    <item>
+      <title>Open source weekly digest</title>
+      <link>https://example.com/blog/oss-weekly</link>
+      <description>Highlights from the open source world this week.</description>
+      <pubDate>Tue, 01 Jul 2026 12:00:00 GMT</pubDate>
+      <guid>https://example.com/blog/oss-weekly</guid>
+    </item>
+    <item>
+      <title>No date item</title>
+      <link>https://example.com/blog/no-date</link>
+      <description>An item without a publish date.</description>
+      <guid>https://example.com/blog/no-date</guid>
+    </item>
+    <item>
+      <title>Empty summary item</title>
+      <link>https://example.com/blog/empty</link>
+      <pubDate>Mon, 30 Jun 2026 08:00:00 GMT</pubDate>
+      <guid>https://example.com/blog/empty</guid>
+    </item>
+  </channel>
+</rss>

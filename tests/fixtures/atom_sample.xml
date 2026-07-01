@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Atom Sample Feed</title>
+  <link href="https://atom.example.com/"/>
+  <link rel="self" href="https://atom.example.com/atom.xml"/>
+  <id>urn:uuid:60a76c80-d399-11d9-b93C-0003939e0af6</id>
+  <updated>2026-07-02T18:00:00Z</updated>
+  <entry>
+    <title>LLM agent framework released</title>
+    <link href="https://atom.example.com/llm-agent"/>
+    <id>urn:uuid:1225c695-cfb8-4ebb-aaaa-80da344efa6a</id>
+    <updated>2026-07-02T09:30:00Z</updated>
+    <published>2026-07-02T09:30:00Z</published>
+    <summary type="html">&lt;p&gt;A new &lt;em&gt;agent framework&lt;/em&gt; for LLMs.&lt;/p&gt;</summary>
+  </entry>
+  <entry>
+    <title>Rust security advisory</title>
+    <link href="https://atom.example.com/rust-security"/>
+    <id>urn:uuid:1225c695-cfb8-4ebb-bbbb-80da344efa6b</id>
+    <updated>2026-07-01T10:00:00Z</updated>
+    <published>2026-07-01T10:00:00Z</published>
+    <content type="html">&lt;div&gt;&lt;script&gt;alert(1)&lt;/script&gt;&lt;p&gt;Critical vulnerability in popular crate.&lt;/p&gt;&lt;/div&gt;</content>
+  </entry>
+  <entry>
+    <title>Entry with no link - should be skipped</title>
+    <id>urn:uuid:1225c695-cfb8-4ebb-cccc-80da344efa6c</id>
+    <updated>2026-07-01T08:00:00Z</updated>
+    <summary>No link here.</summary>
+  </entry>
+</feed>
