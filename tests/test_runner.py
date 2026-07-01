@@ -193,3 +193,34 @@ class TestRunPipeline:
         report = run(config, db_path=tmp_db, feishu=None, dingtalk=dingtalk)
         assert report.delivered >= 1
         assert len(dingtalk.sent) > 0
+
+    def test_run_exception_caught(self, tmp_db, monkeypatch):
+        # Force an exception inside the try block by making parse crash
+        import infodigest.scheduler.runner as runner_mod
+        config = _make_config(tmp_db, FIXTURES / "rss2_sample.xml")
+        _patch_file_fetch(monkeypatch, FIXTURES / "rss2_sample.xml")
+
+        def boom_parse(content, source):
+            raise RuntimeError("parse explosion")
+
+        monkeypatch.setattr(runner_mod, "parse", boom_parse)
+        report = run(config, db_path=tmp_db, feishu=FakeChannel(), dingtalk=FakeChannel())
+        assert report.status == "partial"
+        assert any("parse explosion" in e for e in report.errors)
+
+    def test_run_relative_failed_dir(self, tmp_db, monkeypatch):
+        # When failed_digests_dir is relative, runner resolves it relative to db parent
+        config = _make_config(tmp_db, FIXTURES / "rss2_sample.xml")
+        from dataclasses import replace
+        from infodigest.config import StorageConfig
+        config = replace(config, storage=StorageConfig(db_path=tmp_db, failed_digests_dir="failed_digests"))
+        _patch_file_fetch(monkeypatch, FIXTURES / "rss2_sample.xml")
+        # Force delivery failure to trigger failed_digests write
+        feishu = FakeChannel(ok=False, error="boom")
+        dingtalk = FakeChannel(ok=False, error="boom")
+        report = run(config, db_path=tmp_db, feishu=feishu, dingtalk=dingtalk)
+        assert report.failed > 0
+        # failed_digests dir should exist relative to db parent
+        from pathlib import Path
+        failed_dir = Path(tmp_db).parent / "failed_digests"
+        assert failed_dir.exists()
