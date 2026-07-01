@@ -158,3 +158,96 @@ class TestCollectCommand:
         assert rc == 0
         out = capsys.readouterr().out
         assert "fixture" in out
+
+
+class TestRunCommand:
+    def test_run_with_mocked_pipeline(self, tmp_db, monkeypatch, capsys):
+        import infodigest.cli as cli_mod
+        from infodigest.scheduler.runner import RunReport
+
+        def fake_run(config, db_path=None, feishu=None, dingtalk=None):
+            r = RunReport()
+            r.collected = 5
+            r.deduped = 1
+            r.rated = 4
+            r.stored = 4
+            r.delivered = 2
+            r.run_id = 42
+            return r
+
+        monkeypatch.setattr(cli_mod, "run", fake_run, raising=False)
+        # Also patch the runner module's run since cmd_run imports it locally
+        import infodigest.scheduler.runner as runner_mod
+        monkeypatch.setattr(runner_mod, "run", fake_run)
+
+        rc = main(["--db", tmp_db, "run"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "Run #42" in out
+        assert "collected=5" in out
+        assert "delivered=2" in out
+
+    def test_run_with_errors_returns_nonzero(self, tmp_db, monkeypatch, capsys):
+        import infodigest.scheduler.runner as runner_mod
+        from infodigest.scheduler.runner import RunReport
+
+        def fake_run(config, db_path=None, feishu=None, dingtalk=None):
+            r = RunReport()
+            r.run_id = 7
+            r.collected = 3
+            r.errors.append("webhook down")
+            return r
+
+        monkeypatch.setattr(runner_mod, "run", fake_run)
+        rc = main(["--db", tmp_db, "run"])
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "errors" in out
+        assert "webhook down" in out
+
+
+class TestCollectEdgeCases:
+    def test_collect_304_path(self, tmp_db, monkeypatch, capsys):
+        from infodigest.collector.fetcher import FetchResult
+        import infodigest.cli as cli_mod
+        import infodigest.config as cfg_mod
+        from infodigest.config import Source
+
+        def fake_fetch(url, cfg, etag=None, last_modified=None):
+            return FetchResult(content=b"", status=304, not_modified=True, url=url)
+
+        monkeypatch.setattr("infodigest.collector.fetcher.fetch", fake_fetch)
+        orig_load = cfg_mod.load_config
+        def fake_load_config(config_dir=None):
+            c = orig_load(config_dir)
+            src = Source(id="fixture", url="file://fake", category="tech", authority=0.8, tags=("t",), enabled=True)
+            return cfg_mod.Config(sources=(src,), collect=c.collect, delivery=c.delivery, storage=c.storage, schedule=c.schedule, rater=c.rater, config_dir=c.config_dir)
+        monkeypatch.setattr(cfg_mod, "load_config", fake_load_config)
+        monkeypatch.setattr(cli_mod, "load_config", fake_load_config)
+        rc = main(["--db", tmp_db, "collect"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "[304]" in out
+
+    def test_collect_fetch_error_path(self, tmp_db, monkeypatch, capsys):
+        from infodigest.collector.fetcher import FetchError
+        import infodigest.cli as cli_mod
+        import infodigest.config as cfg_mod
+        from infodigest.config import Source
+
+        def fake_fetch(url, cfg, etag=None, last_modified=None):
+            raise FetchError("fetch failed: HTTP 500")
+
+        monkeypatch.setattr("infodigest.collector.fetcher.fetch", fake_fetch)
+        orig_load = cfg_mod.load_config
+        def fake_load_config(config_dir=None):
+            c = orig_load(config_dir)
+            src = Source(id="fixture", url="file://fake", category="tech", authority=0.8, tags=("t",), enabled=True)
+            return cfg_mod.Config(sources=(src,), collect=c.collect, delivery=c.delivery, storage=c.storage, schedule=c.schedule, rater=c.rater, config_dir=c.config_dir)
+        monkeypatch.setattr(cfg_mod, "load_config", fake_load_config)
+        monkeypatch.setattr(cli_mod, "load_config", fake_load_config)
+        rc = main(["--db", tmp_db, "collect"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "[FAIL]" in out
+        assert "Total new entries: 0" in out
