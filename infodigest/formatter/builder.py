@@ -122,6 +122,30 @@ def render_dingtalk(
     return messages
 
 
+def render_weekly(
+    entries: list[Entry],
+    sources: list[str] | None = None,
+    templates_dir: Path | None = None,
+    delivery: DeliveryConfig | None = None,
+) -> list[RenderedMessage]:
+    """Render entries into weekly digest markdown messages, segmented.
+    Uses weekly_digest.j2 template with grade-grouped sections."""
+    tdir = templates_dir or (CONFIG_DIR / "templates")
+    env = _make_env(tdir)
+    template = env.get_template("weekly_digest.j2")
+    d = delivery or DeliveryConfig()
+    batches = segment_entries(entries, d.max_entries_per_message, d.max_message_bytes) or [[]]
+    messages = []
+    for i, batch in enumerate(batches):
+        rendered = template.render(
+            entries=batch,
+            sources=sources or [],
+            generated_at=utc_now().strftime("%Y-%m-%d %H:%M UTC"),
+        )
+        messages.append(RenderedMessage(content=rendered.strip(), entry_count=len(batch), batch_index=i))
+    return messages
+
+
 def _clean_json(text: str) -> str:
     """Clean up common Jinja2 rendering artifacts in JSON output: trailing
     commas before } or ]."""

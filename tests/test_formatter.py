@@ -10,6 +10,7 @@ from infodigest.config import CONFIG_DIR, DeliveryConfig
 from infodigest.formatter.builder import (
     render_dingtalk,
     render_feishu,
+    render_weekly,
     segment_entries,
     validate_feishu_json,
 )
@@ -150,3 +151,32 @@ class TestValidateFeishuJson:
     def test_trailing_comma_cleaned(self):
         # The _clean_json helper should remove trailing commas
         assert validate_feishu_json('{"a": 1, "b": 2,}')
+
+class TestRenderWeekly:
+    def test_renders_weekly_markdown(self):
+        entries = [
+            _scored_entry("u1", "AI breakthrough", "Big AI news", "A"),
+            _scored_entry("u2", "Rust update", "Rust release", "B"),
+        ]
+        msgs = render_weekly(entries, sources=["hn"], templates_dir=TEMPLATES)
+        assert len(msgs) == 1
+        assert "周报" in msgs[0].content
+        assert "本周 A 级推荐" in msgs[0].content
+        assert "AI breakthrough" in msgs[0].content
+
+    def test_weekly_grade_sections(self):
+        entries = [_scored_entry("u1", "A post", grade="A")]
+        msgs = render_weekly(entries, templates_dir=TEMPLATES)
+        assert "本周 A 级推荐" in msgs[0].content
+        assert "🔥" in msgs[0].content
+
+    def test_weekly_empty(self):
+        msgs = render_weekly([], templates_dir=TEMPLATES)
+        assert len(msgs) == 1
+        assert "周报" in msgs[0].content
+
+    def test_weekly_segmentation(self):
+        entries = [_scored_entry(f"u{i}", f"Title {i}", "x" * 5000, "A") for i in range(10)]
+        msgs = render_weekly(entries, templates_dir=TEMPLATES, delivery=DeliveryConfig(max_entries_per_message=3, max_message_bytes=30000))
+        assert len(msgs) > 1
+        assert sum(m.entry_count for m in msgs) == 10

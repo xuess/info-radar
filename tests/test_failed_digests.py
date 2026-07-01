@@ -74,6 +74,40 @@ class TestIncrementRetries:
         items2 = load_failed(d)
         assert items2[0].retries == 1
 
+    def test_increment_nonexistent_dir(self, tmp_path):
+        d = str(tmp_path / "nonexistent")
+        fd = FailedDigest(channel="x", content="c", entry_count=0, batch_index=0, error="e", created_at=0, digest_id="d")
+        increment_retries(d, fd)  # should not error
+
+    def test_increment_no_match(self, tmp_path):
+        d = str(tmp_path / "failed")
+        save_failed(d, "feishu", "c1", 1, 0, "e1", "d1")
+        fd = FailedDigest(channel="other", content="c", entry_count=0, batch_index=9, error="e", created_at=999, digest_id="d")
+        increment_retries(d, fd)
+        items = load_failed(d)
+        assert items[0].retries == 0  # unchanged, no match
+
+    def test_increment_skips_corrupt_file(self, tmp_path):
+        d = str(tmp_path / "failed")
+        (tmp_path / "failed").mkdir()
+        (tmp_path / "failed" / "bad.json").write_text("not json")
+        save_failed(d, "feishu", "good", 1, 0, "e", "d")
+        items = load_failed(d)
+        increment_retries(d, items[0])  # should skip corrupt, increment good
+        items2 = load_failed(d)
+        assert items2[0].retries == 1
+
+
+class TestRemoveEdgeCases:
+    def test_remove_skips_corrupt_file(self, tmp_path):
+        d = str(tmp_path / "failed")
+        (tmp_path / "failed").mkdir()
+        (tmp_path / "failed" / "bad.json").write_text("not json")
+        save_failed(d, "feishu", "good", 1, 0, "e", "d")
+        items = load_failed(d)
+        removed = remove_failed(d, items[0])
+        assert removed  # good file matched and removed despite corrupt sibling
+
 
 class TestIdempotency:
     def test_save_creates_distinct_files(self, tmp_path):
