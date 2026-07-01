@@ -1,0 +1,24 @@
+# Global settings for InfoDigest
+storage:
+  db_path: data/infodigest.db
+  failed_digests_dir: data/failed_digests
+
+schedule:
+  # Local (APScheduler) scheduling; GitHub Actions uses its own cron.
+  cron: "0 1,9 * * *"
+
+delivery:
+  feishu_enabled: true
+  dingtalk_enabled: true
+  feishu_rate_per_min: 5
+  dingtalk_rate_per_min: 20
+  max_entries_per_message: 20
+  max_message_bytes: 30000
+  push_grade_min: B
+  retry_max: 3
+
+collect:
+  timeout: 15
+  max_retries: 3
+  user_agent: "InfoDigest/1.0 (+https://github.com/xuess/info-radar)"
+  respect_robots: true

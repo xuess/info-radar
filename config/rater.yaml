@@ -1,0 +1,44 @@
+# Rule-based rating configuration (no LLM)
+weights:
+  authority: 30
+  freshness: 25
+  relevance: 25
+  uniqueness: 10
+  engagement: 10
+
+freshness_half_life_hours: 72
+max_age_hours: 168
+relevance_target: 3.0
+engagement_threshold: 200
+
+grade_thresholds:
+  A: 75
+  B: 50
+
+# Minimum grade to include in push digest: A | B | C
+push_grade_min: B
+
+keywords:
+  ai: 1.0
+  llm: 1.0
+  gpt: 0.9
+  安全: 0.8
+  security: 0.8
+  开源: 0.6
+  opensource: 0.6
+  rust: 0.7
+  python: 0.6
+  agent: 0.8
+  智能体: 0.8
+  大模型: 0.9
+  推理: 0.6
+  reasoning: 0.6
+
+# Title clickbait / marketing penalty words (subtract from relevance)
+penalty_words:
+  震惊: 0.5
+  惊人: 0.5
+  shocking: 0.5
+
+dedup_similarity: 0.8
+dedup_window_days: 7

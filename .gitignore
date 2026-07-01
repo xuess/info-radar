@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+
+# Runtime data (never commit)
+.env
+.env.*
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+data/failed_digests/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "info-digest"
+version = "0.1.0"
+description = "Lightweight, zero-ops, self-hostable RSS aggregator: collect, dedup, rule-rate, format, and push to Feishu/DingTalk via GitHub Actions. No LLM."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "InfoDigest Contributors" }]
+keywords = ["rss", "feed", "aggregator", "feishu", "dingtalk", "digest", "github-actions"]
+classifiers = [
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Communications",
+]
+dependencies = [
+    "feedparser>=6.0.11",
+    "httpx>=0.27.2",
+    "beautifulsoup4>=4.12.3",
+    "lxml>=5.2.2",
+    "Jinja2>=3.1.4",
+    "PyYAML>=6.0.1",
+    "APScheduler>=3.10.4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.2.2", "pytest-cov>=5.0.0"]
+
+[project.scripts]
+info-digest = "infodigest.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["infodigest*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -q --strict-markers"
+markers = [
+    "network: tests that require network access (deselect with -m 'not network')",
+]
+
+[tool.coverage.run]
+source = ["infodigest"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
