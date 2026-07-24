@@ -108,9 +108,17 @@ class Repo:
 
     def pending_digest(self, grade_min: str = "B") -> list[Entry]:
         """Return scored entries at or above grade_min that haven't been pushed
-        (digest_id IS NULL), newest first."""
-        grades = {"A": ["A"], "B": ["A", "B"], "C": ["A", "B", "C"]}
-        allowed = grades.get(grade_min, ["A", "B"])
+        (digest_id IS NULL), highest score first.
+
+        Grade ladder: S > A > B > C.
+        """
+        grades = {
+            "S": ["S"],
+            "A": ["S", "A"],
+            "B": ["S", "A", "B"],
+            "C": ["S", "A", "B", "C"],
+        }
+        allowed = grades.get(grade_min, ["S", "A", "B"])
         placeholders = ",".join("?" * len(allowed))
         rows = self.conn.execute(
             f"""
@@ -184,15 +192,15 @@ class Repo:
 
 
     def source_health(self, since_days: int = 30) -> list[dict]:
-        """Return per-source health stats: total entries, A-grade count,
-        A-grade ratio, current authority. Used for auto-weight adjustment."""
+        """Return per-source health stats: total entries, high-grade (S/A) count,
+        high-grade ratio, current authority. Used for auto-weight adjustment."""
         from datetime import timedelta
         cutoff = (utc_now() - timedelta(days=since_days)).isoformat()
         rows = self.conn.execute(
             """
             SELECT s.id, s.authority, s.enabled,
                    COUNT(e.uid) as total,
-                   SUM(CASE WHEN e.grade = 'A' THEN 1 ELSE 0 END) as a_count
+                   SUM(CASE WHEN e.grade IN ('S', 'A') THEN 1 ELSE 0 END) as a_count
             FROM sources s
             LEFT JOIN entries e ON e.source_id = s.id AND e.created_at >= ?
             GROUP BY s.id

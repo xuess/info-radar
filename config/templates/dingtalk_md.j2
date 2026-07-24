@@ -1,26 +1,26 @@
-{# DingTalk markdown template with grade grouping + translation support. #}
-# 📰 InfoDigest 每日推送
+{# DingTalk markdown template with S/A/B grade grouping + translation support. #}
+# 📡 信息雷达 · 精选
 
 > {{ generated_at }} · 共 {{ entries|length }} 条 · 来源 {{ sources|length }}
 
-{% set ns = namespace(seen_a=false, seen_b=false) %}
-{% set grade_emoji = {"A": "🔥", "B": "📌", "C": "📄"} %}
+{% set ns = namespace(seen_s=false, seen_a=false, seen_b=false) %}
+{% set grade_emoji = {"S": "⚡", "A": "🔥", "B": "📌", "C": "📄"} %}
 {% for entry in entries %}
-{% if entry.grade == "A" and not ns.seen_a %}
+{% if entry.grade == "S" and not ns.seen_s %}
+## ⚡ S 级必看
+{% set ns.seen_s = true %}
+{% elif entry.grade == "A" and not ns.seen_a %}
 ## 🔥 A 级推荐
 {% set ns.seen_a = true %}
-{% elif entry.grade == "B" and not ns.seen_b and ns.seen_a %}
-## 📌 B 级关注
-{% set ns.seen_b = true %}
-{% elif entry.grade == "B" and not ns.seen_b and not ns.seen_a %}
+{% elif entry.grade == "B" and not ns.seen_b %}
 ## 📌 B 级关注
 {% set ns.seen_b = true %}
 {% endif %}
-{{ grade_emoji.get(entry.grade, "•") }} [{{ entry.title }}]({{ entry.link }})
+{{ grade_emoji.get(entry.grade, "•") }} [{{ entry.title }}]({{ entry.link }}){% if entry.raw.event_reason and entry.raw.event_reason != "no_event_pattern" %} · {{ entry.raw.event_reason }}{% endif %}
 {% if entry.summary %}{{ entry.summary[:150] }}{% if entry.summary|length > 150 %}...{% endif %}{% endif %}
 {% if entry.raw.title_zh %}📝 {{ entry.raw.title_zh }}{% endif %}
 {% if entry.raw.summary_zh %}{{ entry.raw.summary_zh[:120] }}{% endif %}
 
 {% endfor %}
 ---
-_InfoDigest · 开源自驱信息收集系统_
+_信息雷达 · 宁可少说，不可凑数_

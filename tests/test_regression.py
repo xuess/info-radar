@@ -45,5 +45,5 @@ def test_regression_ordering():
     s1 = score(REGRESSION_ENTRIES[0], ctx)
     s4 = score(REGRESSION_ENTRIES[3], ctx)
     assert s1.raw_score > s4.raw_score
-    assert s1.grade == "A"
+    assert s1.grade in ("S", "A")
     assert s4.grade == "C"

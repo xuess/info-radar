@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from infodigest.collector.parser import Entry
 from infodigest.config import RaterConfig
 from infodigest.rater.scorer import ScoreContext, ScoredEntry, grade_for, score, score_many
@@ -199,9 +201,9 @@ class TestTotalScore:
         e = _entry(title="AI LLM agent", summary="AI LLM agent reasoning", published=NOW, authority=1.0, raw={"points": 1000})
         ctx = ScoreContext(now=NOW, rater=_rater(), recent_titles=[])
         se = score(e, ctx)
-        # all components ~1.0 -> score ~100
+        # all components ~1.0 -> score ~100 (may be S with event boost)
         assert se.raw_score >= 95
-        assert se.grade == "A"
+        assert se.grade in ("S", "A")
 
     def test_old_low_relevance_low_score(self):
         e = _entry(title="random old news", summary="boring", published=NOW - timedelta(hours=200), authority=0.3)
@@ -211,7 +213,9 @@ class TestTotalScore:
         assert se.grade == "C"
 
     def test_grade_thresholds(self):
-        rater = _rater(grade_thresholds={"A": 75, "B": 50})
+        rater = _rater(grade_thresholds={"S": 90, "A": 75, "B": 50})
+        assert grade_for(95, rater) == "S"
+        assert grade_for(90, rater) == "S"
         assert grade_for(80, rater) == "A"
         assert grade_for(75, rater) == "A"
         assert grade_for(60, rater) == "B"
@@ -270,7 +274,7 @@ class TestScorerEdgeCases:
         ctx = ScoreContext(now=NOW, rater=None)
         se = score(e, ctx)
         assert 0 <= se.raw_score <= 100
-        assert se.grade in ("A", "B", "C")
+        assert se.grade in ("S", "A", "B", "C")
 
     def test_jaccard_one_empty_one_not(self):
         from infodigest.rater.scorer import _jaccard
@@ -278,3 +282,62 @@ class TestScorerEdgeCases:
         b = frozenset()
         # one empty, one not -> union non-empty -> 0/len
         assert _jaccard(a, b) == 0.0
+
+
+class TestEventTierAndInterest:
+    def test_event_tier_s_match(self):
+        from infodigest.config import EventTierConfig
+        from infodigest.rater.scorer import score_event_tier
+
+        rater = _rater(
+            event_tiers=EventTierConfig(
+                s_keywords=("GPT-5", "critical vulnerability"),
+                s_boost=20,
+                a_keywords=("OpenAI",),
+                a_boost=12,
+            )
+        )
+        t = score_event_tier("GPT-5 released today", "", rater)
+        assert t.tier == "S"
+        assert t.boost == 20
+
+    def test_rce_not_match_source(self):
+        from infodigest.config import EventTierConfig
+        from infodigest.rater.scorer import score_event_tier
+
+        rater = _rater(
+            event_tiers=EventTierConfig(s_keywords=("RCE",), s_boost=20)
+        )
+        t = score_event_tier("Open source weekly", "", rater)
+        assert t.tier == "C"
+        assert t.boost == 0
+
+    def test_interest_from_category(self):
+        from infodigest.config import InterestsConfig
+        from infodigest.rater.scorer import score_interest
+
+        e = _entry(title="x", raw={"category": "ai", "tags": []})
+        w = score_interest(e, InterestsConfig(weights={"ai": 1.0}, default_weight=0.5))
+        assert w == 1.0
+
+    def test_interest_default(self):
+        from infodigest.config import InterestsConfig
+        from infodigest.rater.scorer import score_interest
+
+        e = _entry(title="x")
+        w = score_interest(e, InterestsConfig(weights={}, default_weight=0.8))
+        assert w == 0.8
+
+    def test_final_includes_boost(self):
+        from infodigest.config import EventTierConfig, InterestsConfig
+
+        rater = _rater(
+            event_tiers=EventTierConfig(a_keywords=("agent",), a_boost=12),
+            interests=InterestsConfig(default_weight=1.0),
+            grade_thresholds={"S": 90, "A": 75, "B": 50},
+        )
+        e = _entry(title="new agent tool", published=NOW, authority=0.9)
+        ctx = ScoreContext(now=NOW, rater=rater, recent_titles=[])
+        se = score(e, ctx)
+        assert se.components["event_boost"] == 12
+        assert se.components["base"] + 12 == pytest.approx(se.raw_score, abs=0.1)

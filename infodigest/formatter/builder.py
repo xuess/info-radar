@@ -30,8 +30,19 @@ class RenderedMessage:
 
 
 def _grade_label(grade: str) -> str:
-    return {"A": "🔥 A级推荐", "B": "📌 B级关注", "C": "📄 C级"}.get(grade, "•")
+    return {
+        "S": "⚡ S级必看",
+        "A": "🔥 A级推荐",
+        "B": "📌 B级关注",
+        "C": "📄 C级",
+    }.get(grade, "•")
 
+
+def _entry_reason(entry: Entry) -> str:
+    reason = entry.raw.get("event_reason") or ""
+    if reason and reason != "no_event_pattern":
+        return f" · {reason}"
+    return ""
 
 def _json_escape(text: str) -> str:
     """Escape a string for embedding inside a JSON string value."""
@@ -153,6 +164,7 @@ def _build_feishu_card(
         summary = entry.summary[:120] + ("..." if len(entry.summary) > 120 else "")
         grade = entry.grade
         label = _grade_label(grade)
+        reason = _entry_reason(entry)
 
         # Build translation block if available
         title_zh = entry.raw.get("title_zh", "")
@@ -163,15 +175,27 @@ def _build_feishu_card(
         if summary_zh:
             translated_block += f"\n{summary_zh[:100]}"
 
-        if grade == "A":
+        if grade in ("S", "A"):
+            tag = "S 必看" if grade == "S" else "A 推荐"
+            emoji = "⚡" if grade == "S" else "🔥"
             elements.append(
                 {
                     "tag": "note",
-                    "elements": [{"tag": "lark_md", "content": f"🔥 **[A 推荐]** [{title}]({link})\n{summary}{translated_block}"}],
+                    "elements": [{
+                        "tag": "lark_md",
+                        "content": (
+                            f"{emoji} **[{tag}]** [{title}]({link}){reason}\n"
+                            f"{summary}{translated_block}"
+                        ),
+                    }],
                 }
             )
         else:
-            content = f"{label} [{title}]({link})\n{summary}{translated_block}" if summary else f"{label} [{title}]({link}){translated_block}"
+            content = (
+                f"{label} [{title}]({link}){reason}\n{summary}{translated_block}"
+                if summary
+                else f"{label} [{title}]({link}){reason}{translated_block}"
+            )
             elements.append(
                 {
                     "tag": "div",
@@ -182,7 +206,7 @@ def _build_feishu_card(
     elements.append(
         {
             "tag": "note",
-            "elements": [{"tag": "plain_text", "content": "InfoDigest · 开源自驱信息收集系统"}],
+            "elements": [{"tag": "plain_text", "content": "信息雷达 · 宁可少说，不可凑数"}],
         }
     )
 
@@ -191,7 +215,7 @@ def _build_feishu_card(
         "card": {
             "config": {"wide_screen_mode": True},
             "header": {
-                "title": {"tag": "plain_text", "content": "📰 InfoDigest 每日推送"},
+                "title": {"tag": "plain_text", "content": "📡 信息雷达 · 精选"},
                 "template": "blue",
             },
             "elements": elements,

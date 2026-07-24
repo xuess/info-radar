@@ -1,4 +1,4 @@
-"""Scheduler runner: orchestrate collect → rate → store → deliver.
+"""Scheduler runner: orchestrate collect → rate → curate → store → deliver.
 
 The runner ties all modules together. It is the single entry point invoked
 by CLI and GitHub Actions. Returns a RunReport with per-stage counts.
@@ -15,6 +15,12 @@ from ..collector.parser import Entry, parse
 from ..config import Config, Source
 from ..delivery.base import SendResult
 from ..formatter.builder import render_dingtalk, render_feishu
+from ..rater.curator import curate
+from ..rater.event_history import (
+    EventHistory,
+    get_daily_push_state,
+    update_daily_push_state,
+)
 from ..rater.scorer import ScoreContext, score
 from ..storage.models import init_db
 from ..storage.repo import Repo
@@ -29,6 +35,7 @@ class RunReport:
     collected: int = 0
     deduped: int = 0
     rated: int = 0
+    curated: int = 0
     stored: int = 0
     delivered: int = 0
     failed: int = 0
@@ -36,6 +43,7 @@ class RunReport:
     sources_ok: int = 0
     sources_failed: int = 0
     run_id: int = 0
+    silent: bool = False
 
     @property
     def status(self) -> str:
@@ -44,7 +52,6 @@ class RunReport:
 
 def _collect_one(source: Source, config: Config, repo: Repo) -> list[Entry]:
     """Fetch + parse a single source. Returns entries (empty on failure)."""
-    # Ensure source record exists (for cache + disable tracking) before fetch
     repo.upsert_source(source)
     etag, last_mod = repo.get_source_cache(source.id)
     try:
@@ -55,14 +62,14 @@ def _collect_one(source: Source, config: Config, repo: Repo) -> list[Entry]:
         return []
     if result.not_modified:
         log.info("source %s not modified (304)", source.id)
-        repo.upsert_source(source)  # ensure source record exists
+        repo.upsert_source(source)
         return []
-    # Update cache headers
     repo.upsert_source(source, etag=result.etag, last_modified=result.last_modified)
     entries = parse(result.content, source)
-    # Inject source authority into each entry's raw for scoring
     for e in entries:
         e.raw["authority"] = source.authority
+        e.raw["category"] = source.category
+        e.raw["tags"] = list(source.tags)
     return entries
 
 
@@ -78,7 +85,6 @@ def _deliver(channel, messages, repo: Repo, digest_ids: list[str], failed_dir: s
         else:
             failed += 1
             errors.append(f"{channel.name} batch {msg.batch_index}: {result.error}")
-            # Persist failed digest for retry
             from ..delivery.failed_digests import save_failed
 
             digest_id = digest_ids[msg.batch_index] if msg.batch_index < len(digest_ids) else ""
@@ -89,8 +95,12 @@ def _deliver(channel, messages, repo: Repo, digest_ids: list[str], failed_dir: s
     return ok, failed, errors
 
 
+def _source_meta(config: Config) -> dict[str, tuple[str, tuple[str, ...]]]:
+    return {s.id: (s.category, s.tags) for s in config.sources}
+
+
 def run(config: Config, db_path: str | None = None, feishu=None, dingtalk=None) -> RunReport:
-    """Run the full pipeline: collect → dedup → rate → store → deliver.
+    """Run the full pipeline: collect → dedup → rate → curate → store → deliver.
 
     Args:
         config: loaded Config.
@@ -104,6 +114,7 @@ def run(config: Config, db_path: str | None = None, feishu=None, dingtalk=None) 
     db = db_path or config.storage.db_path
     conn = init_db(db)
     repo = Repo(conn)
+    history = EventHistory(conn, config.rater)
     run_id = repo.start_run()
     report.run_id = run_id
 
@@ -114,9 +125,6 @@ def run(config: Config, db_path: str | None = None, feishu=None, dingtalk=None) 
             entries = _collect_one(source, config, repo)
             if entries:
                 report.sources_ok += 1
-            else:
-                # Not necessarily failed (304), but track
-                pass
             all_entries.extend(entries)
         report.collected = len(all_entries)
 
@@ -127,7 +135,6 @@ def run(config: Config, db_path: str | None = None, feishu=None, dingtalk=None) 
             recent_titles=recent,
             similarity_threshold=config.rater.dedup_similarity,
         )
-        # Cross-source: same story reported by multiple sources -> keep highest authority
         deduped_entries, dropped2 = dedup_cross_source(
             deduped_entries,
             similarity_threshold=config.rater.dedup_similarity,
@@ -138,8 +145,29 @@ def run(config: Config, db_path: str | None = None, feishu=None, dingtalk=None) 
         stored = repo.upsert_entries(deduped_entries)
         report.stored = stored
 
-        # ---- RATE ----
-        ctx = ScoreContext.build(config.rater, recent_titles=recent)
+        # ---- RATE (with decay/novelty from history) ----
+        decay_by_uid: dict[str, float] = {}
+        novelty_by_uid: dict[str, float] = {}
+        for e in deduped_entries:
+            # Hint grade from event tier alone for decay rate lookup
+            from ..rater.scorer import score_event_tier
+
+            tier = score_event_tier(e.title, e.summary, config.rater)
+            decay_info = history.compute_decay(
+                e.title,
+                grade_hint=tier.tier,
+                text_for_novelty=f"{e.title} {e.summary or ''}",
+            )
+            decay_by_uid[e.uid] = decay_info.decay
+            novelty_by_uid[e.uid] = decay_info.novelty
+
+        ctx = ScoreContext.build(
+            config.rater,
+            recent_titles=recent,
+            decay_by_uid=decay_by_uid,
+            novelty_by_uid=novelty_by_uid,
+            source_meta=_source_meta(config),
+        )
         scored = []
         for e in deduped_entries:
             se = score(e, ctx)
@@ -147,12 +175,32 @@ def run(config: Config, db_path: str | None = None, feishu=None, dingtalk=None) 
             scored.append(se)
         report.rated = len(scored)
 
-        # ---- DELIVER ----
+        # ---- CURATE (quality gate + quotas) ----
         pending = repo.pending_digest(config.delivery.push_grade_min)
-        if not pending:
-            log.info("no pending entries to deliver")
+        # Enrich pending with source meta for display (already scored in DB)
+        for e in pending:
+            meta = _source_meta(config).get(e.source_id)
+            if meta:
+                e.raw.setdefault("category", meta[0])
+                e.raw.setdefault("tags", list(meta[1]))
+
+        daily = get_daily_push_state(conn)
+        curated = curate(
+            pending,
+            config.rater,
+            history=history,
+            daily_state=daily,
+        )
+        report.curated = len(curated.entries)
+        report.silent = curated.silent
+
+        if not curated.entries:
+            log.info(
+                "no curated entries to deliver (silent=%s, reasons=%s)",
+                curated.silent,
+                curated.reasons,
+            )
         else:
-            # Instantiate channels if not injected
             if feishu is None and config.delivery.feishu_enabled:
                 from ..delivery.feishu import FeishuChannel
 
@@ -162,11 +210,9 @@ def run(config: Config, db_path: str | None = None, feishu=None, dingtalk=None) 
 
                 dingtalk = DingTalkChannel(delivery=config.delivery)
 
-            sources_list = list({e.source_id for e in pending})
-            # Build source language map for translation
-            source_langs = {}
-            for src in config.sources:
-                source_langs[src.id] = src.lang
+            to_push = curated.entries
+            sources_list = list({e.source_id for e in to_push})
+            source_langs = {src.id: src.lang for src in config.sources}
             failed_dir = config.storage.failed_digests_dir
             if not Path(failed_dir).is_absolute():
                 failed_dir = str(Path(db).parent / "failed_digests")
@@ -176,21 +222,29 @@ def run(config: Config, db_path: str | None = None, feishu=None, dingtalk=None) 
             errors: list[str] = []
 
             if feishu is not None:
-                msgs = render_feishu(pending, sources=sources_list, delivery=config.delivery,
-                                      translate_cfg=config.translate, source_langs=source_langs)
-                # Create digest records
+                msgs = render_feishu(
+                    to_push,
+                    sources=sources_list,
+                    delivery=config.delivery,
+                    translate_cfg=config.translate,
+                    source_langs=source_langs,
+                )
                 digest_ids = [repo.create_digest("feishu", m.entry_count) for m in msgs]
                 ok, fail, errs = _deliver(feishu, msgs, repo, digest_ids, failed_dir)
                 delivered += ok
                 failures += fail
                 errors.extend(errs)
-                # Mark all pending entries as delivered (batch marker = first digest)
                 if digest_ids:
-                    repo.mark_entries_digest([e.uid for e in pending], digest_ids[0])
+                    repo.mark_entries_digest([e.uid for e in to_push], digest_ids[0])
 
             if dingtalk is not None:
-                msgs = render_dingtalk(pending, sources=sources_list, delivery=config.delivery,
-                                        translate_cfg=config.translate, source_langs=source_langs)
+                msgs = render_dingtalk(
+                    to_push,
+                    sources=sources_list,
+                    delivery=config.delivery,
+                    translate_cfg=config.translate,
+                    source_langs=source_langs,
+                )
                 digest_ids = [repo.create_digest("dingtalk", m.entry_count) for m in msgs]
                 ok, fail, errs = _deliver(dingtalk, msgs, repo, digest_ids, failed_dir)
                 delivered += ok
@@ -200,6 +254,17 @@ def run(config: Config, db_path: str | None = None, feishu=None, dingtalk=None) 
             report.delivered = delivered
             report.failed = failures
             report.errors.extend(errors)
+
+            # Record history + daily quotas only after at least one successful send
+            if delivered > 0:
+                history.record_many(
+                    [e.title for e in to_push],
+                    [float(e.raw.get("raw_score", 50)) for e in to_push],
+                )
+                update_daily_push_state(
+                    conn, [str(e.raw.get("grade", e.grade)) for e in to_push]
+                )
+                history.cleanup()
 
         report.sources_failed = len(config.enabled_sources) - report.sources_ok
         repo.finish_run(

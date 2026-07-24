@@ -118,20 +118,25 @@ class TestEntries:
         e1 = _entry("u1", "Grade A")
         e2 = _entry("u2", "Grade B")
         e3 = _entry("u3", "Grade C")
-        repo.upsert_entries([e1, e2, e3])
+        e4 = _entry("u4", "Grade S")
+        repo.upsert_entries([e1, e2, e3, e4])
         repo.update_score(ScoredEntry(entry=e1, raw_score=85, grade="A", components={}))
         repo.update_score(ScoredEntry(entry=e2, raw_score=60, grade="B", components={}))
         repo.update_score(ScoredEntry(entry=e3, raw_score=30, grade="C", components={}))
+        repo.update_score(ScoredEntry(entry=e4, raw_score=95, grade="S", components={}))
 
         pending_b = repo.pending_digest("B")
         uids = {e.uid for e in pending_b}
-        assert "u1" in uids and "u2" in uids and "u3" not in uids
+        assert "u1" in uids and "u2" in uids and "u4" in uids and "u3" not in uids
 
         pending_a = repo.pending_digest("A")
-        assert {e.uid for e in pending_a} == {"u1"}
+        assert {e.uid for e in pending_a} == {"u1", "u4"}
+
+        pending_s = repo.pending_digest("S")
+        assert {e.uid for e in pending_s} == {"u4"}
 
         pending_c = repo.pending_digest("C")
-        assert len(pending_c) == 3
+        assert len(pending_c) == 4
 
     def test_pending_digest_excludes_pushed(self, repo):
         e1 = _entry("u1", "Grade A")

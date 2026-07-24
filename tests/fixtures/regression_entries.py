@@ -1,5 +1,7 @@
 """Offline regression fixture for scoring: 5 fixed entries with expected
 score ranges and grades. Guards against silent weight/threshold drift.
+
+Formula: final = clamp(base * interest + event_boost - decay + novelty, 0, 100)
 """
 from __future__ import annotations
 
@@ -22,13 +24,13 @@ def _e(uid, title, summary, published, authority, raw=None):
 
 
 REGRESSION_ENTRIES = [
-    # 1. Fresh, high authority, keyword-rich, unique, high engagement -> A
+    # 1. Fresh, high authority, keyword-rich + Agent event boost -> S
     _e("reg1", "AI LLM agent framework released", "New agent framework for LLM reasoning",
        REGRESSION_NOW, 0.95, raw={"points": 300}),
-    # 2. Fresh, medium authority, some keywords, unique, no engagement -> B/A boundary
+    # 2. Critical vulnerability -> S event tier boost
     _e("reg2", "Rust security advisory patched", "Critical vulnerability fixed in rust crate",
        REGRESSION_NOW - timedelta(hours=6), 0.8),
-    # 3. Stale (4 days), medium authority, few keywords -> B/C
+    # 3. Stale (4 days) + open source A boost, still below B threshold -> C
     _e("reg3", "Open source weekly roundup", "Highlights from opensource community",
        REGRESSION_NOW - timedelta(hours=96), 0.6),
     # 4. Very old (>7 days) -> freshness 0 -> C
@@ -41,9 +43,9 @@ REGRESSION_ENTRIES = [
 
 # Expected (grade, min_score, max_score) per entry — stable across runs
 EXPECTED = [
-    ("A", 75, 100),
-    ("B", 50, 85),
-    ("C", 0, 75),  # stale -> freshness low
-    ("C", 0, 55),  # very old -> freshness 0
-    ("C", 0, 45),  # low authority, no keywords
+    ("S", 90, 100),   # high base + Agent boost
+    ("S", 90, 100),   # critical vulnerability S boost
+    ("C", 40, 55),    # stale + open-source boost still < 50
+    ("C", 0, 55),     # very old -> freshness 0
+    ("C", 0, 50),     # low authority, no keywords
 ]

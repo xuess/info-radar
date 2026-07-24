@@ -11,11 +11,12 @@
 ## 特性
 
 - 📡 **RSS 采集**：httpx 增量抓取（ETag/Last-Modified），feedparser 解析 RSS2/Atom/RDF
-- 🔄 **去重**：sha1 主键 + Jaccard 标题相似度二次去重
-- 📊 **规则评级**：五维评分（权威/新鲜度/关键词/唯一性/热度）+ A/B/C 分级，权重全可配
+- 🔄 **去重**：sha1 主键 + SequenceMatcher/Jaccard 标题相似度 + 48h 时序去重
+- 📊 **规则评级**：五维评分 × 兴趣权重 + 事件档加成 + 衰减/新颖度，S/A/B/C 分级
+- ✂️ **策展裁剪**：日配额、噪声过滤、无高价值静默（宁可少说）
 - 📝 **模板排版**：Jinja2 渲染飞书 interactive card / 钉钉 markdown，分段限流
 - 🚀 **双通道推送**：飞书 + 钉钉 webhook（含 HMAC 签名），令牌桶限流
-- 💾 **SQLite 持久化**：条目/运行记录/源缓存，增量入库
+- 💾 **SQLite 持久化**：条目/运行记录/源缓存/事件历史，增量入库
 - ⏰ **GitHub Actions 调度**：cron 每日 09:00/17:00（北京时间）自动运行
 - 🔒 **安全**：密钥走 Secrets，永不入仓
 - 🚫 **无 LLM**：全链路确定性，零 API 成本
@@ -83,18 +84,19 @@ python -m infodigest.cli sources      # 列出源
 | 文件 | 用途 |
 |---|---|
 | `config/feeds.yaml` | RSS 源注册表（id/url/category/authority/tags/enabled） |
-| `config/rater.yaml` | 评分权重/关键词/阈值/分级 |
+| `config/rater.yaml` | 评分权重/关键词/事件档/配额/时序去重 |
+| `config/user_interests.yaml` | 兴趣权重（category/tag → 乘数） |
 | `config/settings.yaml` | 全局：存储路径/调度/推送通道开关/限流 |
 | `config/templates/*.j2` | 飞书 card / 钉钉 markdown / 通用段落模板 |
 
 ### 评分公式
 
 ```
-score = 30*authority + 25*freshness + 25*relevance + 10*uniqueness + 10*engagement
+final = clamp(base * interest + event_boost - decay + novelty, 0, 100)
+base  = 30*authority + 25*freshness + 25*relevance + 10*uniqueness + 10*engagement
 ```
-- `freshness = exp(-Δh/72)`（72h 半衰期，>7天归零）
-- `relevance`：关键词命中（标题×1.0，摘要×0.4）
-- 分级：≥75 A 推荐 · 50–74 B 关注 · <50 C 忽略（默认不推）
+- 分级：≥90 S · ≥75 A · ≥50 B · <50 C（默认不推）
+- 策展：48h 去重、日配额、无高价值则静默不推
 
 详见 `RATING_SPEC.md`。
 

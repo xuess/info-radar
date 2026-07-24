@@ -56,16 +56,14 @@ class TestDedupEntries:
         assert dropped == 0
 
     def test_fuzzy_title_dedup(self):
-        # Near-identical titles differing by one word -> high Jaccard
+        # Near-identical titles: SequenceMatcher catches release/released
         entries = [
             _entry("u1", "AI breakthrough model released"),
             _entry("u2", "AI breakthrough model release"),
         ]
         kept, dropped = dedup_entries(entries, similarity_threshold=0.8)
-        # {ai,breakthrough,model,released} vs {ai,breakthrough,model,release}
-        # intersection 3, union 5 = 0.6 < 0.8 -> NOT deduped
-        assert len(kept) == 2
-        assert dropped == 0
+        assert len(kept) == 1
+        assert dropped == 1
 
     def test_fuzzy_title_dedup_high_similarity(self):
         # Identical except trailing punctuation -> Jaccard 1.0
@@ -115,7 +113,33 @@ class TestDedupEntries:
         assert {e.uid for e in kept1} == {e.uid for e in kept2}
 
 
-class TestDedupCrossSource:
+class TestTitleSimilarity:
+    def test_sequence_ratio_near_identical_chinese(self):
+        from infodigest.collector.dedup import title_similarity
+
+        a = "OpenAI发布GPT新模型"
+        b = "OpenAI发布GPT新模型！"
+        assert title_similarity(a, b) >= 0.9
+
+    def test_combined_catches_near_dup(self):
+        from infodigest.collector.dedup import title_similarity
+
+        # Slightly different wording — SequenceMatcher helps
+        a = "AI breakthrough model released today"
+        b = "AI breakthrough model released"
+        assert title_similarity(a, b) >= 0.75
+
+
+class TestDedupWithSequenceMatcher:
+    def test_fuzzy_near_identical_at_075(self):
+        entries = [
+            _entry("u1", "AI breakthrough model released today"),
+            _entry("u2", "AI breakthrough model released"),
+        ]
+        kept, dropped = dedup_entries(entries, similarity_threshold=0.75)
+        assert len(kept) == 1
+        assert dropped == 1
+
     def test_keeps_higher_authority(self):
         from infodigest.collector.parser import Entry
         from datetime import datetime, timezone

@@ -1,0 +1,37 @@
+# User interest weights (no LLM). Multiply into final score.
+# Keys match feed category and/or tags from feeds.yaml.
+# Adjust freely: higher = more likely to push.
+
+interests:
+  # High interest
+  ai: 1.0
+  tech: 0.95
+  opensource: 0.9
+  security: 0.85
+  product: 0.7
+  design: 0.55
+
+  # Tag-level overrides (matched against source tags)
+  ml: 1.0
+  agent: 1.0
+  mcp: 1.0
+  github: 0.9
+  startup: 0.75
+  vulnerability: 0.85
+  linux: 0.8
+  community: 0.5
+  weekly: 0.6
+  web: 0.7
+  blog: 0.55
+  news: 0.7
+  ux: 0.55
+  css: 0.5
+  dev: 0.9
+
+  # Low interest (rarely push unless event tier is high)
+  entertainment: 0.1
+  sports: 0.1
+  gossip: 0.1
+
+# Default when category/tags match nothing (neutral — do not penalize unknown)
+default_weight: 1.0

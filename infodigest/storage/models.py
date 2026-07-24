@@ -57,6 +57,25 @@ CREATE TABLE IF NOT EXISTS runs (
   delivered INTEGER,
   status TEXT
 );
+
+CREATE TABLE IF NOT EXISTS event_history (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  first_seen TEXT NOT NULL,
+  last_seen TEXT NOT NULL,
+  count INTEGER DEFAULT 1,
+  last_score REAL DEFAULT 0,
+  has_new_development INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_event_history_last_seen ON event_history(last_seen);
+
+CREATE TABLE IF NOT EXISTS daily_push_state (
+  date TEXT PRIMARY KEY,
+  s_count INTEGER DEFAULT 0,
+  a_count INTEGER DEFAULT 0,
+  b_count INTEGER DEFAULT 0,
+  updated_at TEXT
+);
 """
 
 

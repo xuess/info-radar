@@ -56,10 +56,15 @@ def _make_config(db_path: str, feed_path: Path, enabled: bool = True) -> Config:
         rater=RaterConfig(
             weights={"authority": 30, "freshness": 25, "relevance": 25, "uniqueness": 10, "engagement": 10},
             keywords={"ai": 1.0, "llm": 1.0, "rust": 0.7, "安全": 0.8, "opensource": 0.6},
-            grade_thresholds={"A": 75, "B": 50},
+            grade_thresholds={"S": 90, "A": 75, "B": 50},
             push_grade_min="B",
-            dedup_similarity=0.8,
+            dedup_similarity=0.75,
             dedup_window_days=7,
+            allow_empty_digest=True,
+            min_push_score=40.0,
+            daily_quotas={"S": 10, "A": 20, "B": 30},
+            noise_patterns=(),
+            require_link_for_high_grade=True,
         ),
     )
 

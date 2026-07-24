@@ -1,4 +1,6 @@
 # Rule-based rating configuration (no LLM)
+# final = clamp(base * interest + event_boost - decay + novelty, 0, 100)
+
 weights:
   authority: 30
   freshness: 25
@@ -11,11 +13,13 @@ max_age_hours: 168
 relevance_target: 3.0
 engagement_threshold: 200
 
+# Grade thresholds on final score (S is top tier)
 grade_thresholds:
+  S: 90
   A: 75
   B: 50
 
-# Minimum grade to include in push digest: A | B | C
+# Minimum grade to include before curator: S | A | B | C
 push_grade_min: B
 
 keywords:
@@ -33,6 +37,10 @@ keywords:
   大模型: 0.9
   推理: 0.6
   reasoning: 0.6
+  mcp: 0.9
+  cursor: 0.8
+  vulnerability: 0.8
+  漏洞: 0.8
 
 # Title clickbait / marketing penalty words (subtract from relevance)
 penalty_words:
@@ -47,5 +55,105 @@ penalty_words:
   incredible: 0.4
   clickbait: 0.5
 
-dedup_similarity: 0.8
+# Batch fuzzy dedup (SequenceMatcher + Jaccard max)
+dedup_similarity: 0.75
 dedup_window_days: 7
+
+# Temporal event history (aligned with openclaw event-dedup)
+dedup_hours: 48
+downgrade_count: 3
+downgrade_window_days: 7
+force_archive_count: 5
+history_cleanup_days: 14
+
+# Event decay for repeated stories (points subtracted per day since first seen)
+decay_rates:
+  S: 20
+  A: 15
+  B: 10
+  C: 10
+novelty_bonus: 15
+novelty_keywords:
+  - 新进展
+  - 确认
+  - 官方
+  - 突破
+  - 创新高
+  - 首次
+  - 发布
+  - 上线
+  - 宣布
+  - released
+  - launches
+  - announces
+  - breakthrough
+
+# Event tier patterns → boost added after base*interest
+# S/A/B keyword lists (substring match, case-insensitive)
+event_patterns:
+  S:
+    boost: 20
+    keywords:
+      - GPT-5
+      - GPT-6
+      - Claude 4
+      - Claude Opus
+      - Gemini 3
+      - Llama 4
+      - 开源大模型
+      - critical vulnerability
+      - zero-day
+      - 0-day
+      - 严重漏洞
+      - RCE
+  A:
+    boost: 12
+    keywords:
+      - OpenAI
+      - Anthropic
+      - DeepSeek
+      - Cursor
+      - Copilot
+      - MCP
+      - Agent
+      - 大模型
+      - CVE-
+      - 漏洞
+      - vulnerability
+      - open source
+      - 开源
+      - breaking change
+  B:
+    boost: 5
+    keywords:
+      - release
+      - 发布
+      - update
+      - 更新
+      - funding
+      - 融资
+      - report
+      - 报告
+      - framework
+      - library
+
+# Hard noise filter (drop before push)
+noise_patterns:
+  - 震惊
+  - 必看
+  - 你绝对不知道
+  - clickbait
+  - "!!!+"
+  - 转发抽奖
+  - 关注领
+
+# Daily push quotas by grade (curator)
+daily_quotas:
+  S: 3
+  A: 8
+  B: 12
+
+# Curator gates
+min_push_score: 50
+allow_empty_digest: true
+require_link_for_high_grade: true

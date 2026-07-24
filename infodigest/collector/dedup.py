@@ -1,18 +1,20 @@
-"""Collector dedup: sha1 primary key + title Jaccard similarity dedup.
+"""Collector dedup: sha1 primary key + SequenceMatcher/Jaccard fuzzy dedup.
 
 Two-stage:
 1. Primary key dedup: identical uid (sha1(norm_title + domain)) dropped.
-2. Fuzzy dedup: Jaccard similarity on title word-sets > threshold dropped,
+2. Fuzzy dedup: max(SequenceMatcher, Jaccard) on titles > threshold dropped,
    keeping the earliest published (or first-seen) entry.
 """
 from __future__ import annotations
 
 import re
+from difflib import SequenceMatcher
 
 from .normalizer import normalize_title
 from .parser import Entry
 
 _WS_RE = re.compile(r"\s+")
+_NON_WORD_RE = re.compile(r"[^\w\u4e00-\u9fff]", re.UNICODE)
 
 
 def _word_set(title: str) -> frozenset[str]:
@@ -21,6 +23,12 @@ def _word_set(title: str) -> frozenset[str]:
     if not norm:
         return frozenset()
     return frozenset(_WS_RE.split(norm))
+
+
+def _compact_title(title: str) -> str:
+    """Normalize title for SequenceMatcher (CJK-friendly, strip punctuation)."""
+    norm = normalize_title(title)
+    return _NON_WORD_RE.sub("", norm).lower()
 
 
 def jaccard(a: frozenset[str], b: frozenset[str]) -> float:
@@ -33,16 +41,33 @@ def jaccard(a: frozenset[str], b: frozenset[str]) -> float:
     return len(a & b) / len(union)
 
 
+def sequence_ratio(a: str, b: str) -> float:
+    """SequenceMatcher ratio on compact titles."""
+    ca, cb = _compact_title(a), _compact_title(b)
+    if not ca and not cb:
+        return 0.0
+    if not ca or not cb:
+        return 0.0
+    return SequenceMatcher(None, ca, cb).ratio()
+
+
+def title_similarity(a: str, b: str) -> float:
+    """Combined similarity: max(SequenceMatcher, Jaccard). Better for CJK short titles."""
+    seq = sequence_ratio(a, b)
+    jac = jaccard(_word_set(a), _word_set(b))
+    return max(seq, jac)
+
+
 def dedup_entries(
     entries: list[Entry],
     recent_titles: list[str] | None = None,
-    similarity_threshold: float = 0.8,
+    similarity_threshold: float = 0.75,
 ) -> tuple[list[Entry], int]:
     """Deduplicate entries.
 
     Returns (kept, num_dropped). Drops:
     - exact uid duplicates (primary key)
-    - entries whose title Jaccard > threshold vs an earlier kept entry
+    - entries whose title similarity > threshold vs an earlier kept entry
       (within this batch and vs recent_titles history)
 
     recent_titles: titles from the last N days for cross-batch fuzzy dedup.
@@ -50,11 +75,7 @@ def dedup_entries(
     seen_uids: set[str] = set()
     kept: list[Entry] = []
     dropped = 0
-
-    # Pre-compute word sets for recent history for fuzzy comparison
-    history_sets: list[frozenset[str]] = []
-    if recent_titles:
-        history_sets = [_word_set(t) for t in recent_titles if t]
+    history = [t for t in (recent_titles or []) if t]
 
     for entry in entries:
         # Stage 1: primary key
@@ -64,15 +85,14 @@ def dedup_entries(
         seen_uids.add(entry.uid)
 
         # Stage 2: fuzzy vs kept in this batch + recent history
-        e_words = _word_set(entry.title)
         is_dup = False
         for prev in kept:
-            if jaccard(e_words, _word_set(prev.title)) >= similarity_threshold:
+            if title_similarity(entry.title, prev.title) >= similarity_threshold:
                 is_dup = True
                 break
         if not is_dup:
-            for hs in history_sets:
-                if jaccard(e_words, hs) >= similarity_threshold:
+            for ht in history:
+                if title_similarity(entry.title, ht) >= similarity_threshold:
                     is_dup = True
                     break
 
@@ -85,14 +105,13 @@ def dedup_entries(
     return kept, dropped
 
 
-
 def dedup_cross_source(
     entries: list[Entry],
-    similarity_threshold: float = 0.8,
+    similarity_threshold: float = 0.75,
 ) -> tuple[list[Entry], int]:
     """Cross-source dedup: when two entries from different sources have
-    near-identical titles (Jaccard >= threshold), keep only the one with
-    higher source authority (entry.raw['authority']). If equal, keep first-seen.
+    near-identical titles, keep only the one with higher source authority
+    (entry.raw['authority']). If equal, keep first-seen.
 
     Returns (kept, num_dropped). Operates on title similarity only.
     """
@@ -106,10 +125,9 @@ def dedup_cross_source(
             dropped += 1
             continue
         seen_uids.add(entry.uid)
-        e_words = _word_set(entry.title)
         is_dup = False
         for prev in kept:
-            if jaccard(e_words, _word_set(prev.title)) >= similarity_threshold:
+            if title_similarity(entry.title, prev.title) >= similarity_threshold:
                 is_dup = True
                 break
         if is_dup:

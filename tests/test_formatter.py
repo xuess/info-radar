@@ -101,7 +101,7 @@ class TestRenderDingtalk:
     def test_renders_markdown(self):
         msgs = render_dingtalk([_scored_entry("u1", "AI news", "desc", "A")], sources=["hn"])
         assert "AI news" in msgs[0].content
-        assert "InfoDigest" in msgs[0].content
+        assert "信息雷达" in msgs[0].content
 
     def test_grade_marker(self):
         msgs = render_dingtalk([_scored_entry("u1", grade="A")])
@@ -109,7 +109,7 @@ class TestRenderDingtalk:
         assert "🔥" in msgs[0].content
 
     def test_empty(self):
-        assert "InfoDigest" in render_dingtalk([])[0].content
+        assert "信息雷达" in render_dingtalk([])[0].content
 
     def test_segmentation(self):
         entries = [_scored_entry(f"u{i}", summary="x" * 5000) for i in range(10)]
