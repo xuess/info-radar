@@ -1,9 +1,6 @@
 name: Daily Digest
 
 on:
-  schedule:
-    # 01:00 and 09:00 UTC = 09:00 and 17:00 Beijing time
-    - cron: '0 1,9 * * *'
   workflow_dispatch:
 
 jobs:
